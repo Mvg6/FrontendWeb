@@ -1,0 +1,9 @@
+# Lista blanca: se ignora todo y solo se versiona lo que se permite abajo.
+/*
+!/.gitignore
+!/README.md
+!/index.html
+!/fonts/
+
+# Nunca se versiona (ya queda fuera por la lista blanca; se deja explícito).
+respaldo/

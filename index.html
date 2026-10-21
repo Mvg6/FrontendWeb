@@ -1,0 +1,2463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Evaluación de daños en fachadas</title>
+<style>
+  /* Barlow (SIL Open Font License 1.1, ver fonts/OFL.txt), servida localmente. */
+  @font-face { font-family: "Barlow"; src: url("fonts/barlow-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Barlow"; src: url("fonts/barlow-latin-500-normal.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Barlow"; src: url("fonts/barlow-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Barlow Condensed"; src: url("fonts/barlow-condensed-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+  @font-face { font-family: "Barlow Condensed"; src: url("fonts/barlow-condensed-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+
+  :root {
+    --concreto: #E6EAEF;
+    --papel: #FFFFFF;
+    --junta: #C4CCD6;
+    --grafito: #4A5565;
+    --tinta: #1F3864;
+    --tinta-activa: #2B4C84;
+
+    /* Severidad: los únicos colores saturados de la página. */
+    --rojo: #B42318;
+    --rojo-tenue: #FBE4E2;
+    --rojo-texto: #8F1D14;
+    --amarillo: #F2C230;
+    --amarillo-tenue: #FCF0C8;
+    --verde: #1E7B45;
+    --verde-tenue: #E2F1E7;
+    --verde-texto: #17603A;
+
+    --radio-control: 6px;
+    --radio-papel: 2px;
+    --alto-barra: 0px;
+
+    --fuente: "Barlow", "Segoe UI", system-ui, sans-serif;
+    --fuente-titulo: "Barlow Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--concreto);
+    color: var(--tinta);
+    font: 400 16px/1.5 var(--fuente);
+  }
+  h1, h2, h3, h4 {
+    margin: 0;
+    font-family: var(--fuente-titulo);
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--tinta);
+  }
+  p { margin: 0; }
+  button { font: inherit; }
+  [hidden] { display: none !important; }
+  :focus-visible { outline: 3px solid var(--tinta); outline-offset: 2px; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ---------- Cabecera ---------- */
+  .cabecera {
+    background: var(--papel);
+    border-top: 4px solid var(--tinta);
+    border-bottom: 1px solid var(--junta);
+  }
+  .cabecera-interior {
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 12px max(24px, env(safe-area-inset-right)) 12px max(24px, env(safe-area-inset-left));
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px 16px;
+  }
+  .cabecera h1 { font-size: 26px; }
+  .cabecera-derecha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+  .estado-servidor { font-size: 14px; color: var(--grafito); }
+  .estado-servidor.error { color: var(--rojo-texto); font-weight: 600; }
+  .zona-sesion { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .zona-sesion .btn { min-height: 38px; padding: 7px 14px; font-size: 15px; }
+  .zona-sesion .btn-primario { width: auto; }
+  .usuario-activo { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+
+  .aviso-sesion {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 12px 16px;
+    background: var(--papel);
+    border: 1px solid var(--junta);
+    border-left: 6px solid var(--tinta);
+    border-radius: var(--radio-control);
+  }
+  .aviso-sesion .btn { min-height: 38px; padding: 7px 14px; }
+
+  /* ---------- Espacio de trabajo ---------- */
+  .espacio {
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 24px max(24px, env(safe-area-inset-right)) 48px max(24px, env(safe-area-inset-left));
+    display: grid;
+    grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  .columna-resultado { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+  .panel-historial { grid-column: 1 / -1; }
+
+  .panel {
+    min-width: 0;
+    padding: 20px;
+    background: var(--papel);
+    border: 1px solid var(--junta);
+    border-radius: var(--radio-control);
+  }
+  .panel h2 { font-size: 23px; }
+  .panel-fotos h2 { margin-bottom: 14px; }
+
+  /* ---------- Botones ---------- */
+  .btn {
+    min-height: 44px;
+    padding: 10px 18px;
+    border: 1px solid transparent;
+    border-radius: var(--radio-control);
+    font-weight: 600;
+    font-size: 16px;
+    line-height: 1.2;
+    cursor: pointer;
+  }
+  .btn-primario { width: 100%; background: var(--tinta); color: #fff; }
+  .btn-primario:hover:not(:disabled) { background: var(--tinta-activa); }
+  .btn-primario:disabled { background: #D5DBE3; color: var(--grafito); cursor: not-allowed; }
+  .btn-secundario { background: var(--papel); color: var(--tinta); border-color: var(--junta); }
+  .btn-secundario:hover:not(:disabled) { border-color: var(--tinta); }
+  .btn-secundario:disabled { color: var(--grafito); cursor: wait; }
+  .btn-enlace {
+    padding: 4px 0;
+    border: 0;
+    background: none;
+    color: var(--tinta);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .btn-enlace-peligro { color: var(--rojo-texto); }
+  .btn-peligro { background: var(--rojo); color: #fff; }
+  .btn-peligro:hover:not(:disabled) { background: var(--rojo-texto); }
+  .btn-peligro:disabled { background: #D5DBE3; color: var(--grafito); cursor: wait; }
+
+  /* ---------- Diálogos de cuenta ---------- */
+  .dialogo {
+    width: min(460px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    border: 1px solid var(--junta);
+    border-top: 4px solid var(--tinta);
+    border-radius: var(--radio-control);
+    background: var(--papel);
+    color: var(--tinta);
+    overflow: auto;
+  }
+  .dialogo::backdrop { background: rgba(12, 20, 36, 0.6); }
+  .dialogo-form { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
+  .dialogo-form h2 { font-size: 26px; }
+  .dialogo-intro { color: var(--grafito); }
+  .campo { display: flex; flex-direction: column; gap: 4px; }
+  .campo-etiqueta { font-weight: 600; }
+  .campo input {
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid #8C97A8;
+    border-radius: var(--radio-control);
+    font: inherit;
+    color: var(--tinta);
+    background: var(--papel);
+  }
+  .campo input:focus-visible { outline: 3px solid var(--tinta); outline-offset: 1px; }
+  .campo input[aria-invalid="true"] { border-color: var(--rojo); }
+  .campo-ayuda { font-size: 14px; color: var(--grafito); }
+  .aviso-privacidad {
+    padding: 12px 14px;
+    background: #F4F6F9;
+    border: 1px solid var(--junta);
+    border-radius: var(--radio-control);
+    font-size: 15px;
+  }
+  .aviso-privacidad-titulo { font-weight: 600; margin-bottom: 4px; }
+  .aviso-privacidad ul { margin: 0; padding-left: 20px; }
+  .aviso-privacidad li + li { margin-top: 4px; }
+  .casilla { display: flex; align-items: flex-start; gap: 10px; font-weight: 600; cursor: pointer; }
+  .casilla input { width: 22px; height: 22px; margin: 1px 0 0; flex-shrink: 0; accent-color: var(--tinta); }
+  .dialogo-error:empty { display: none; }
+  .dialogo-error { padding: 10px 14px; background: var(--rojo-tenue); border-left: 6px solid var(--rojo); border-radius: var(--radio-control); color: var(--rojo-texto); }
+  .dialogo-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+  .dialogo-acciones .btn { width: auto; }
+  .dialogo-cambio { font-size: 15px; color: var(--grafito); }
+
+  /* ---------- Cuenta y análisis sin guardar ---------- */
+  .nota-sin-guardar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 12px 16px;
+    background: var(--papel);
+    border: 1px solid var(--junta);
+    border-left: 6px solid var(--tinta);
+    border-radius: var(--radio-control);
+  }
+  .nota-sin-guardar .btn, .explicacion .btn-cta { width: auto; min-height: 38px; padding: 7px 14px; }
+  .cta-explicacion { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--junta); }
+  .historial-sin-sesion { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 16px 0 4px; }
+  .historial-sin-sesion p { color: var(--grafito); }
+  .historial-sin-sesion .btn { width: auto; }
+  .zona-cuenta { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--junta); }
+
+  /* ---------- Selector de modo ---------- */
+  .selector-modo {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    margin-bottom: 14px;
+    background: var(--concreto);
+    border: 1px solid var(--junta);
+    border-radius: var(--radio-control);
+  }
+  .selector-modo button {
+    flex: 1;
+    min-height: 40px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--grafito);
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .selector-modo button:hover:not(:disabled) { color: var(--tinta); }
+  .selector-modo button:disabled { cursor: not-allowed; }
+  .selector-modo button[aria-pressed="true"] {
+    background: var(--papel);
+    color: var(--tinta);
+    box-shadow: 0 0 0 1px var(--junta);
+  }
+
+  /* ---------- Zona de carga ---------- */
+  .zona-carga {
+    padding: 22px 18px;
+    border: 2px dashed var(--junta);
+    border-radius: var(--radio-control);
+    background: #F7F9FB;
+    cursor: pointer;
+  }
+  .zona-carga:hover, .zona-carga.arrastrando { border-color: var(--tinta); background: var(--papel); }
+  .zona-carga.compacta { padding: 12px 16px; }
+  .zona-carga.llena { cursor: not-allowed; }
+  .zona-carga.llena:hover { border-color: var(--junta); background: #F7F9FB; }
+  .zona-carga.con-foto { padding: 8px; border-style: solid; background: var(--papel); }
+  .zona-texto { display: flex; align-items: center; gap: 14px; }
+  .zona-texto svg { flex-shrink: 0; color: var(--grafito); }
+  .zona-titulo { font-weight: 600; }
+  .zona-pista { font-size: 14px; color: var(--grafito); }
+  .vista-previa {
+    display: block;
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    background: var(--concreto);
+    border-radius: var(--radio-papel);
+    cursor: zoom-in;
+  }
+  .con-foto .zona-pista { margin-top: 8px; }
+
+  .archivo-info {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px 12px;
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--grafito);
+  }
+  .archivo-info > span:first-child { overflow-wrap: anywhere; }
+  .archivo-acciones { display: flex; gap: 16px; }
+
+  /* ---------- Hoja de contactos ---------- */
+  .hoja-contactos {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+    gap: 6px;
+    margin: 12px 0 0;
+    padding: 6px;
+    background: var(--concreto);
+    border-radius: var(--radio-papel);
+  }
+  .hoja-contactos:empty { display: none; }
+  .contacto {
+    min-width: 0;
+    padding: 4px;
+    background: var(--papel);
+    border: 1px solid var(--junta);
+    border-radius: var(--radio-papel);
+  }
+  .contacto.con-error { border-color: var(--rojo); box-shadow: 0 0 0 1px var(--rojo); }
+  .contacto-foto { position: relative; }
+  .contacto-foto img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: var(--concreto);
+    cursor: zoom-in;
+  }
+  .contacto-numero {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 3px 7px;
+    background: var(--tinta);
+    color: #fff;
+    font: 600 14px/1 var(--fuente-titulo);
+  }
+  .contacto-quitar {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(31, 56, 100, 0.88);
+    color: #fff;
+    cursor: pointer;
+  }
+  .contacto-quitar:hover { background: var(--rojo); }
+  .contacto-quitar:focus-visible { outline-color: var(--papel); outline-offset: -3px; }
+  .contacto-nombre {
+    margin: 4px 2px;
+    font-size: 12px;
+    color: var(--grafito);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .contacto-error { margin: 6px 2px 2px; font-size: 13px; line-height: 1.35; color: var(--rojo-texto); }
+
+  .selector-vista {
+    display: flex;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--junta);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .selector-vista label { flex: 1; position: relative; cursor: pointer; }
+  .selector-vista input { position: absolute; opacity: 0; pointer-events: none; }
+  .selector-vista span {
+    display: block;
+    padding: 6px 2px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--grafito);
+  }
+  .selector-vista label + label span { border-left: 1px solid var(--junta); }
+  .selector-vista input:checked + span { background: var(--tinta); color: #fff; font-weight: 600; }
+  .selector-vista input:focus-visible + span { outline: 3px solid var(--tinta); outline-offset: -3px; }
+  .selector-vista input:checked:focus-visible + span { outline-color: var(--papel); }
+  @media (pointer: coarse) { .selector-vista span { padding: 10px 2px; } }
+
+  .contador-fotos { margin-top: 10px; font-size: 14px; color: var(--grafito); }
+
+  /* ---------- Avisos ---------- */
+  .aviso { margin-top: 12px; padding: 10px 14px; border-radius: var(--radio-control); font-size: 15px; }
+  .aviso strong { display: block; }
+  .aviso p + p, .aviso strong + p { margin-top: 4px; }
+  .aviso ul { margin: 4px 0 0; padding-left: 20px; }
+  .aviso-error { background: var(--rojo-tenue); border-left: 6px solid var(--rojo); color: var(--rojo-texto); }
+  .aviso-revisar { background: var(--amarillo-tenue); border-left: 6px solid var(--amarillo); color: var(--tinta); }
+
+  /* ---------- Cámara y barra de acción ---------- */
+  .btn-camara { display: none; width: 100%; margin-top: 12px; }
+  .barra-accion { margin-top: 16px; }
+  .progreso:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--grafito);
+  }
+  .progreso-segundos { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .spinner {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--junta);
+    border-top-color: var(--tinta);
+    border-radius: 50%;
+    animation: girar 0.8s linear infinite;
+  }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
+  /* ---------- Ficha de evaluación (lo único llamativo) ---------- */
+  .ficha {
+    --color-ficha: var(--junta);
+    --texto-banda: var(--grafito);
+    background: var(--papel);
+    border: 3px solid var(--color-ficha);
+    border-radius: var(--radio-papel);
+  }
+  .ficha.rojo { --color-ficha: var(--rojo); --texto-banda: #fff; }
+  .ficha.amarillo { --color-ficha: var(--amarillo); --texto-banda: var(--tinta); }
+  .ficha.verde { --color-ficha: var(--verde); --texto-banda: #fff; }
+  .ficha.neutra { border-style: dashed; }
+  .ficha-banda {
+    padding: 14px 18px 16px;
+    background: var(--color-ficha);
+    color: var(--texto-banda);
+  }
+  .ficha.neutra .ficha-banda { background: var(--concreto); }
+  .ficha-banda-fila {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 2px 16px;
+  }
+  .ficha-titular {
+    font: 700 42px/1 var(--fuente-titulo);
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    color: inherit;
+  }
+  .ficha-numero { font: 600 18px/1.2 var(--fuente-titulo); }
+  .ficha-bajada { margin-top: 8px; font-size: 17px; font-weight: 500; max-width: 60ch; }
+  .ficha-revisar {
+    padding: 10px 18px;
+    background: var(--amarillo-tenue);
+    border-left: 6px solid var(--amarillo);
+    border-bottom: 1px solid var(--junta);
+    font-weight: 600;
+  }
+  .ficha-campos { margin: 0; padding: 2px 18px; }
+  .ficha-campo {
+    display: grid;
+    grid-template-columns: minmax(110px, 38%) minmax(0, 1fr);
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--junta);
+  }
+  .ficha-campo dt { color: var(--grafito); }
+  .ficha-campo dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .no-evaluado { font-weight: 500; font-style: italic; color: var(--grafito); }
+  .rotulo-fuente { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; font-style: normal; color: var(--grafito); }
+  .consentimiento-ia {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    line-height: 1.4;
+    cursor: pointer;
+  }
+  .consentimiento-ia input { width: 20px; height: 20px; margin: 0; flex-shrink: 0; accent-color: var(--tinta); }
+  .ficha-nota { margin: 12px 18px 0; padding: 10px 12px; background: var(--amarillo-tenue); border-radius: var(--radio-control); }
+  .ficha-pie { padding: 12px 18px 14px; font-size: 14px; color: var(--grafito); }
+  .ficha-pie p + p { margin-top: 4px; }
+  .ficha.nueva { animation: colocar 220ms ease-out both; }
+  @keyframes colocar {
+    from { opacity: 0; transform: scale(1.03); }
+    to { opacity: 1; transform: none; }
+  }
+
+  /* ---------- Explicación ---------- */
+  .explicacion-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px 12px;
+  }
+  .columna-resultado h3, .detalle-columna h3 { font-size: 22px; }
+  .etiqueta-ia {
+    padding: 2px 10px;
+    border: 1px solid var(--junta);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--tinta);
+  }
+  .explicacion h4 { margin: 18px 0 6px; font-size: 19px; }
+  .explicacion p, .explicacion li { max-width: 70ch; overflow-wrap: anywhere; }
+  .aviso, .ficha-nota, .ficha-revisar { overflow-wrap: anywhere; }
+  .explicacion > p { margin-top: 8px; }
+  .explicacion ul, .explicacion ol { margin: 0; padding-left: 22px; }
+  .explicacion li + li { margin-top: 4px; }
+  .explicacion ol li::marker { font-family: var(--fuente-titulo); font-weight: 700; }
+  .explicacion h4 + p + ol { margin-top: 8px; }
+  .explicacion-modelo { margin-top: 16px; font-size: 13px; color: var(--grafito); }
+
+  /* ---------- Fotos analizadas ---------- */
+  .lista-fotos { list-style: none; margin: 10px 0 0; padding: 0; }
+  .foto-fila {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--junta);
+  }
+  .foto-fila.sin-imagen { grid-template-columns: minmax(0, 1fr); }
+  .foto-fila img {
+    display: block;
+    width: 76px;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--radio-papel);
+    background: var(--concreto);
+    cursor: zoom-in;
+  }
+  .miniatura-vacia {
+    display: grid;
+    place-items: center;
+    width: 76px;
+    aspect-ratio: 4 / 3;
+    padding: 4px;
+    border-radius: var(--radio-papel);
+    background: var(--concreto);
+    color: var(--grafito);
+    font-size: 11px;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .foto-fila-cabecera { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+  .foto-fila-titulo { font: 600 18px/1.2 var(--fuente-titulo); }
+  .foto-fila-vista { font-size: 14px; font-weight: 600; color: var(--grafito); }
+  .foto-fila-nombre { font-size: 13px; color: var(--grafito); overflow-wrap: anywhere; }
+  .foto-fila > div { min-width: 0; }
+  .foto-fila-datos { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; font-size: 14px; }
+  .foto-fila-datos > span { min-width: 0; overflow-wrap: anywhere; }
+  .dato-etiqueta { color: var(--grafito); }
+  .foto-fila-nota { margin-top: 4px; font-size: 14px; font-style: italic; color: var(--grafito); }
+  .probabilidades {
+    display: grid;
+    grid-template-columns: auto minmax(40px, 1fr) auto;
+    align-items: center;
+    gap: 2px 8px;
+    max-width: 300px;
+    margin-top: 6px;
+    font-size: 13px;
+  }
+  .probabilidad-nombre { color: var(--grafito); }
+  .probabilidad-barra { height: 6px; background: var(--concreto); border-radius: 3px; overflow: hidden; }
+  .probabilidad-barra > span { display: block; height: 100%; }
+  .probabilidad-valor { min-width: 5.5ch; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .relleno-verde { background: var(--verde); }
+  .relleno-amarillo { background: var(--amarillo); }
+  .relleno-rojo { background: var(--rojo); }
+  /* Columna angosta (detalle del historial en el celular): la barra pasa debajo del nombre y el porcentaje. */
+  .foto-fila > div { container-type: inline-size; }
+  @container (max-width: 210px) {
+    .probabilidades { grid-template-columns: minmax(0, 1fr) auto; grid-auto-flow: row dense; gap: 0 8px; }
+    .probabilidad-barra { grid-column: 1 / -1; margin-bottom: 4px; }
+  }
+
+  .chip {
+    display: inline-block;
+    padding: 1px 9px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  .chip-rojo { background: var(--rojo-tenue); color: var(--rojo-texto); }
+  .chip-amarillo { background: var(--amarillo-tenue); color: var(--tinta); }
+  .chip-verde { background: var(--verde-tenue); color: var(--verde-texto); }
+  .chip-neutra { background: var(--concreto); color: var(--grafito); }
+
+  /* ---------- Historial ---------- */
+  .historial-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 12px 16px;
+    margin-bottom: 14px;
+  }
+  .historial-cabecera p { margin-top: 2px; font-size: 14px; color: var(--grafito); }
+  .acciones-historial { display: flex; flex-wrap: wrap; gap: 8px; }
+  .historial-vacio { padding: 24px 0 8px; color: var(--grafito); }
+
+  .tabla-historial { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .tabla-historial th {
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--tinta);
+    text-align: left;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--grafito);
+  }
+  .tabla-historial td { padding: 10px; border-bottom: 1px solid var(--junta); vertical-align: middle; overflow-wrap: anywhere; }
+  .fila-inspeccion:hover { background: #F4F6F9; }
+  .fila-inspeccion.abierta { background: #EDF1F6; }
+  .col-ficha { font: 600 18px/1.2 var(--fuente-titulo); white-space: nowrap; }
+  .col-veredicto .chip, .col-dano .chip {
+    max-width: 12em;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+  }
+  .col-ver { text-align: right; }
+  .btn-ver { min-height: 36px; padding: 6px 12px; font-size: 14px; white-space: nowrap; }
+  .fila-detalle > td { padding: 16px; background: var(--concreto); }
+  .detalle-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .detalle-columna { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  /* ---------- Vista ampliada ---------- */
+  .lightbox:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(56px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    background: rgba(12, 20, 36, 0.92);
+  }
+  .lightbox img { max-width: 100%; max-height: 100%; border-radius: var(--radio-papel); }
+  .lightbox-cerrar {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    color: #fff;
+    cursor: pointer;
+  }
+  .lightbox-cerrar:hover { background: rgba(255, 255, 255, 0.3); }
+  .lightbox-cerrar:focus-visible { outline-color: #fff; }
+
+  /* ---------- Tablet ---------- */
+  @media (max-width: 959px) {
+    .espacio { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 860px) {
+    .tabla-historial thead {
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+    }
+    .tabla-historial, .tabla-historial tbody { display: block; }
+    .fila-inspeccion {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "veredicto ficha"
+        "fecha     fotos"
+        "ver       ver";
+      gap: 6px 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--junta);
+    }
+    .fila-inspeccion td { display: block; padding: 0; border: 0; }
+    .fila-inspeccion .col-veredicto { grid-area: veredicto; }
+    .fila-inspeccion .col-ficha { grid-area: ficha; text-align: right; }
+    .fila-inspeccion .col-ficha::before { content: "Ficha "; }
+    .fila-inspeccion .col-fecha { grid-area: fecha; color: var(--grafito); font-size: 14px; }
+    .fila-inspeccion .col-fotos { grid-area: fotos; text-align: right; color: var(--grafito); font-size: 14px; }
+    .fila-inspeccion .col-ver { grid-area: ver; text-align: left; }
+    .fila-inspeccion .col-dano,
+    .fila-inspeccion .col-rescatable,
+    .fila-inspeccion .col-construccion { display: none; }
+    .btn-ver { width: 100%; min-height: 44px; }
+    .fila-detalle:not([hidden]) { display: block; }
+    .fila-detalle > td { display: block; padding: 12px; margin-bottom: 4px; }
+    .detalle-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  /* ---------- Celular ---------- */
+  @media (max-width: 720px) {
+    .cabecera-interior { padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); }
+    .cabecera h1 { font-size: 22px; }
+    .espacio {
+      gap: 16px;
+      padding: 16px max(16px, env(safe-area-inset-right)) calc(var(--alto-barra) + 24px) max(16px, env(safe-area-inset-left));
+    }
+    .panel { padding: 16px; }
+    .btn-camara { display: block; }
+    .barra-accion {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 50;
+      margin: 0;
+      padding: 10px max(16px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+      background: var(--papel);
+      border-top: 1px solid var(--junta);
+    }
+    .ficha-banda { padding: 12px 14px 14px; }
+    .ficha-titular { font-size: 33px; }
+    .ficha-bajada { font-size: 16px; }
+    .ficha-revisar { padding: 10px 14px; }
+    .ficha-campos { padding: 2px 14px; }
+    .ficha-nota { margin: 12px 14px 0; }
+    .ficha-pie { padding: 12px 14px 14px; }
+    .ficha-campo { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ficha.nueva { animation: none; }
+    .spinner { animation: none; border-top-color: var(--junta); border-right-color: var(--tinta); }
+  }
+</style>
+</head>
+<body>
+
+<header class="cabecera">
+  <div class="cabecera-interior">
+    <h1>Evaluación de daños en fachadas</h1>
+    <div class="cabecera-derecha">
+      <p id="estado-servidor" class="estado-servidor" role="status">Conectando con el servidor…</p>
+      <div id="zona-sesion" class="zona-sesion"></div>
+    </div>
+  </div>
+</header>
+
+<main class="espacio" id="principal">
+  <div id="aviso-sesion" class="aviso-sesion" role="status" hidden></div>
+
+  <section class="panel panel-fotos" aria-labelledby="titulo-fotos">
+    <h2 id="titulo-fotos">Foto de la fachada</h2>
+
+    <div class="selector-modo" role="group" aria-label="Qué vas a analizar">
+      <button type="button" data-modo="una" aria-pressed="true">Una foto</button>
+      <button type="button" data-modo="edificio" aria-pressed="false">Edificio (varias fotos)</button>
+    </div>
+
+    <input type="file" id="input-archivo" accept="image/*" hidden>
+    <div class="zona-carga" id="zona-carga" tabindex="0" role="button" aria-label="Elegir o arrastrar una foto">
+      <div id="contenido-zona"></div>
+    </div>
+    <div id="archivo-info"></div>
+
+    <div id="panel-edificio" hidden>
+      <ul id="hoja-contactos" class="hoja-contactos" aria-label="Fotos agregadas"></ul>
+      <p id="contador-fotos" class="contador-fotos"></p>
+    </div>
+    <div id="avisos-carga" aria-live="polite"></div>
+
+    <input type="file" id="input-camara" accept="image/*" capture="environment" hidden>
+    <button type="button" class="btn btn-secundario btn-camara" id="btn-camara">Tomar foto con la cámara</button>
+
+    <div class="barra-accion" id="barra-accion">
+      <label class="consentimiento-ia" id="consentimiento-ia">
+        <input type="checkbox" id="acepta-envio-ia">
+        <span>Acepto que la foto se envíe a Google Gemini para redactar una explicación detallada.</span>
+      </label>
+      <button type="button" id="btn-analizar" class="btn btn-primario" disabled>Analizar foto</button>
+      <div id="progreso" class="progreso" hidden>
+        <span class="spinner" aria-hidden="true"></span>
+        <span id="progreso-mensaje" role="status"></span>
+        <span id="progreso-segundos" class="progreso-segundos" aria-hidden="true"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="columna-resultado" aria-labelledby="titulo-resultado">
+    <h2 id="titulo-resultado" class="sr-only">Evaluación sugerida</h2>
+    <div id="resultado" class="columna-resultado"></div>
+  </section>
+
+  <section class="panel panel-historial" aria-labelledby="titulo-historial">
+    <div class="historial-cabecera">
+      <div>
+        <h2 id="titulo-historial">Historial de inspecciones</h2>
+        <p>De la más grave a la menos grave.</p>
+      </div>
+      <div class="acciones-historial" id="acciones-historial" hidden>
+        <button type="button" class="btn btn-secundario" id="btn-actualizar">Actualizar</button>
+        <button type="button" class="btn btn-secundario" id="btn-exportar-excel">Descargar Excel</button>
+        <button type="button" class="btn btn-secundario" id="btn-exportar-pdf">Descargar PDF</button>
+      </div>
+    </div>
+    <div id="exportar-info" aria-live="polite"></div>
+    <div id="historial"></div>
+    <div id="zona-cuenta" class="zona-cuenta" hidden>
+      <button type="button" class="btn-enlace btn-enlace-peligro" id="btn-eliminar-cuenta">Eliminar mi cuenta y mis datos</button>
+    </div>
+  </section>
+</main>
+
+<dialog id="dialogo-ingresar" class="dialogo" aria-labelledby="titulo-ingresar">
+  <form id="form-ingresar" class="dialogo-form" novalidate>
+    <h2 id="titulo-ingresar">Ingresar</h2>
+    <p class="dialogo-intro">Ingresa para guardar tus análisis y ver tu historial.</p>
+    <label class="campo">
+      <span class="campo-etiqueta">Usuario</span>
+      <input type="text" name="usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    </label>
+    <label class="campo">
+      <span class="campo-etiqueta">Contraseña</span>
+      <input type="password" name="contrasena" autocomplete="current-password" required>
+    </label>
+    <div class="dialogo-error" aria-live="assertive"></div>
+    <div class="dialogo-acciones">
+      <button type="button" class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button type="submit" class="btn btn-primario">Ingresar</button>
+    </div>
+    <p class="dialogo-cambio">¿No tienes cuenta? <button type="button" class="btn-enlace" data-abrir="registro">Crear cuenta</button></p>
+  </form>
+</dialog>
+
+<dialog id="dialogo-registro" class="dialogo" aria-labelledby="titulo-registro">
+  <form id="form-registro" class="dialogo-form" novalidate>
+    <h2 id="titulo-registro">Crear cuenta</h2>
+    <p class="dialogo-intro">No necesitas cuenta para analizar. La cuenta sirve para guardar tus análisis y ver tu historial.</p>
+    <label class="campo">
+      <span class="campo-etiqueta">Usuario</span>
+      <input type="text" name="usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required minlength="3" maxlength="30" aria-describedby="ayuda-usuario">
+      <span class="campo-ayuda" id="ayuda-usuario">De 3 a 30 caracteres: letras sin tilde ni ñ, números, punto o guion bajo.</span>
+    </label>
+    <label class="campo">
+      <span class="campo-etiqueta">Contraseña</span>
+      <input type="password" name="contrasena" autocomplete="new-password" required minlength="8" maxlength="128" aria-describedby="ayuda-contrasena">
+      <span class="campo-ayuda" id="ayuda-contrasena">De 8 a 128 caracteres.</span>
+    </label>
+    <label class="campo">
+      <span class="campo-etiqueta">Confirmar contraseña</span>
+      <input type="password" name="confirmar" autocomplete="new-password" required>
+    </label>
+    <div class="aviso-privacidad" id="aviso-privacidad">
+      <p class="aviso-privacidad-titulo">Aviso de privacidad</p>
+      <ul>
+        <li>Se guardan tu nombre de usuario, los resultados de tus análisis y una miniatura de cada foto.</li>
+        <li>Con cuenta, las fotos se envían a Google Gemini para redactar la explicación.</li>
+        <li>Puedes eliminar tu cuenta y todos tus datos cuando quieras.</li>
+        <li>No hay recuperación de contraseña: si la olvidas, tendrás que crear otra cuenta.</li>
+      </ul>
+    </div>
+    <label class="casilla">
+      <input type="checkbox" name="acepta" required aria-describedby="aviso-privacidad">
+      <span>Leí y acepto el aviso de privacidad.</span>
+    </label>
+    <div class="dialogo-error" aria-live="assertive"></div>
+    <div class="dialogo-acciones">
+      <button type="button" class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button type="submit" class="btn btn-primario">Crear cuenta</button>
+    </div>
+    <p class="dialogo-cambio">¿Ya tienes cuenta? <button type="button" class="btn-enlace" data-abrir="ingresar">Ingresar</button></p>
+  </form>
+</dialog>
+
+<dialog id="dialogo-eliminar" class="dialogo" aria-labelledby="titulo-eliminar">
+  <form id="form-eliminar" class="dialogo-form" novalidate>
+    <h2 id="titulo-eliminar">Eliminar mi cuenta y mis datos</h2>
+    <p class="dialogo-intro">Se borrarán tu cuenta, todas tus inspecciones y las miniaturas de tus fotos. Esto no se puede deshacer.</p>
+    <label class="campo">
+      <span class="campo-etiqueta">Escribe tu contraseña para confirmar</span>
+      <input type="password" name="contrasena" autocomplete="current-password" required>
+    </label>
+    <div class="dialogo-error" aria-live="assertive"></div>
+    <div class="dialogo-acciones">
+      <button type="button" class="btn btn-secundario" data-cerrar>Cancelar</button>
+      <button type="submit" class="btn btn-peligro">Eliminar cuenta y datos</button>
+    </div>
+  </form>
+</dialog>
+
+<p id="anuncio" class="sr-only" aria-live="polite"></p>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden>
+  <button type="button" class="lightbox-cerrar" id="lightbox-cerrar" aria-label="Cerrar la foto ampliada">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+  <img id="lightbox-img" alt="">
+</div>
+
+<script>
+  // Servido por el backend (local o por el túnel): la API está en el mismo origen
+  // y se usan rutas relativas. Abierto aparte (Live Server en otro puerto local, o
+  // como archivo): se usa el backend local.
+  const ABIERTO_APARTE = location.protocol === "file:" ||
+    (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname) && location.port !== "8000");
+  const URL_API = ABIERTO_APARTE ? "http://localhost:8000" : "";
+
+  const TIPOS_PERMITIDOS = ["image/jpeg", "image/png", "image/webp"];
+  const TAMANO_MAXIMO = 8 * 1024 * 1024; // 8 MB
+  const MAXIMO_FOTOS_EDIFICIO = 10;
+  const MENSAJE_SIN_CONEXION =
+    `No hay conexión con el servidor de análisis. Verifica que esté encendido en ${URL_API || location.origin} y vuelve a intentar.`;
+
+  const ICONO_FOTO = `<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1.5"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M21 16l-5.2-5.2L5 20"/></svg>`;
+  const ICONO_QUITAR = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
+
+  // ---------- Utilidades ----------
+  // Todo texto que venga del backend pasa por texto()/escaparHtml() antes de llegar a innerHTML.
+  function escaparHtml(valor) {
+    return String(valor).replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function texto(valor) {
+    return valor === null || valor === undefined ? "—" : escaparHtml(valor);
+  }
+
+  function textoConfianza(valor) {
+    return valor === null || valor === undefined ? "—" : `${Number(valor)}%`;
+  }
+
+  function plural(n, singular, pluralTexto) {
+    return `${n} ${n === 1 ? singular : pluralTexto}`;
+  }
+
+  function formatearFecha(valor) {
+    const partes = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(valor || "");
+    return partes ? `${partes[3]}/${partes[2]}/${partes[1]} ${partes[4]}` : texto(valor);
+  }
+
+  const CLASE_NIVEL = { "Leve": "verde", "Moderado": "amarillo", "Severo/Colapso": "rojo" };
+
+  function claseNivel(nivel) {
+    return CLASE_NIVEL[nivel] || "neutra";
+  }
+
+  function claseRescatable(valor) {
+    if (valor === "Sí") return "verde";
+    if (valor === "No") return "rojo";
+    if (valor === null || valor === undefined) return "neutra";
+    return "amarillo";
+  }
+
+  // Miniatura que se amplía con clic, Enter o Espacio.
+  function hacerAmpliable(img, src, etiqueta) {
+    img.tabIndex = 0;
+    img.setAttribute("role", "button");
+    img.setAttribute("aria-label", `Ampliar ${etiqueta}`);
+    img.addEventListener("click", (e) => {
+      e.stopPropagation();
+      abrirLightbox(src, etiqueta, img);
+    });
+    img.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        abrirLightbox(src, etiqueta, img);
+      }
+    });
+  }
+
+  function chip(valor, clase) {
+    return `<span class="chip chip-${clase}">${texto(valor)}</span>`;
+  }
+
+  // Color y titular salen solo del nivel de daño de la CNN; la explicación de la IA no los cambia.
+  // Sin fotos exteriores (veredicto.nota) la ficha nunca es verde.
+  function estadoFicha(inspeccion) {
+    const v = inspeccion.veredicto;
+    const sinExteriores = v.nota !== null && v.nota !== undefined;
+    if (v.nivel_dano === "Severo/Colapso") {
+      return { clase: "rojo", titular: "No ingresar", bajada: "Daño severo o colapso. Evacuar y acordonar la zona." };
+    }
+    if (sinExteriores && (v.nivel_dano === "Leve" || v.nivel_dano === "Moderado")) {
+      return { clase: "amarillo", titular: "Evaluación incompleta",
+        bajada: "Faltan fotos exteriores para confirmar el tipo de construcción y si es rescatable." };
+    }
+    if (v.nivel_dano === "Moderado") {
+      return { clase: "amarillo", titular: "Ingreso restringido", bajada: "Daño moderado. No habitar hasta que lo revise un ingeniero." };
+    }
+    if (v.nivel_dano === "Leve") {
+      // El dataset llama a esta clase "poco o ningún daño".
+      return { clase: "verde", titular: "Daño leve o no visible", bajada: "Poco o ningún daño visible. Uso posible tras una revisión preventiva." };
+    }
+    return { clase: "neutra", titular: "Sin clasificar", bajada: "El servidor no devolvió un nivel de daño reconocido." };
+  }
+
+  // Salidas del modelo aún sin entrenar: llegan en null y se listan en "cabezas_no_entrenadas".
+  // Se reconocen por fragmento (como hace el backend con los nombres de salida del modelo).
+  // Los campos dicen solo "No disponible"; la explicación va una sola vez, al pie de la ficha.
+  // rescatableFuente "reglas": el backend estima la rescatabilidad a partir del nivel de daño.
+  // omitirTipo: el tipo lo entregó Gemini, o Gemini no respondió (eso se explica en el campo).
+  function notaNoEntrenado(noEntrenadas, rescatableFuente, omitirTipo = false) {
+    const tipo = noEntrenadas.has("tipo_construccion") && !omitirTipo;
+    const porReglas = rescatableFuente === "reglas";
+    const rescatable = noEntrenadas.has("rescatable") && !porReglas;
+    const reglas = "La rescatabilidad se estima con reglas a partir del nivel de daño; la decisión final es de un ingeniero colegiado.";
+    if (tipo && porReglas) return `El modelo aún no está entrenado para reconocer el tipo de construcción. ${reglas}`;
+    if (porReglas) return reglas;
+    if (tipo && rescatable) return "El modelo aún no está entrenado para reconocer el tipo de construcción ni si la edificación es rescatable.";
+    if (tipo) return "El modelo aún no está entrenado para reconocer el tipo de construcción.";
+    if (rescatable) return "El modelo aún no está entrenado para reconocer si la edificación es rescatable.";
+    return "";
+  }
+
+  // La explicación es de respaldo porque Gemini no respondió (cuota agotada o error).
+  function iaFallo(explicacion) {
+    return !!explicacion && explicacion.fuente !== "gemini"
+      && (explicacion.motivo_respaldo === "cuota" || explicacion.motivo_respaldo === "error");
+  }
+
+  function esTipoDeGemini(valor, fuente) {
+    return fuente === "gemini" && valor !== null && valor !== undefined;
+  }
+
+  // Tipo de construcción: con fuente "gemini" lleva rótulo; null sin entrenar es "No disponible".
+  // Gemini evaluó el tipo pero no lo distinguió con seguridad (fuente "gemini" y valor null).
+  function tipoNoDistinguido(valor, fuente) {
+    return fuente === "gemini" && (valor === null || valor === undefined);
+  }
+
+  function htmlTipo(valor, fuente, noEntrenadas, { siFalta = "No evaluado" } = {}) {
+    if (esTipoDeGemini(valor, fuente)) {
+      return `${texto(valor)}<span class="rotulo-fuente">Detectado por IA externa (Gemini), referencial</span>`;
+    }
+    if (tipoNoDistinguido(valor, fuente)) {
+      return `<span class="no-evaluado">No se distingue con seguridad en las fotos</span><span class="rotulo-fuente">Evaluado por IA externa (Gemini)</span>`;
+    }
+    if (valor !== null && valor !== undefined) return texto(valor);
+    if (sinEntrenar(valor, "tipo_construccion", noEntrenadas)) return `<span class="no-evaluado">No disponible</span>`;
+    return siFalta === null ? texto(valor) : `<span class="no-evaluado">${siFalta}</span>`;
+  }
+
+  // Valor de "¿Rescatable?": con fuente "reglas" se muestra el valor y un rótulo; nunca "No disponible".
+  function htmlRescatable(valor, fuente, noEntrenadas, { comoChip = false } = {}) {
+    if (fuente === "reglas" && valor !== null && valor !== undefined) {
+      const mostrado = comoChip ? chip(valor, claseRescatable(valor)) : texto(valor);
+      return `${mostrado}<span class="rotulo-fuente">Estimación preliminar por reglas</span>`;
+    }
+    if (sinEntrenar(valor, "rescatable", noEntrenadas)) return `<span class="no-evaluado">No disponible</span>`;
+    return comoChip ? chip(valor, claseRescatable(valor)) : texto(valor);
+  }
+
+  function salidasNoEntrenadas(...listas) {
+    const salidas = new Set();
+    listas.forEach(lista => (Array.isArray(lista) ? lista : []).forEach(cabeza => {
+      const nombre = String(cabeza).toLowerCase();
+      if (nombre.includes("constru")) salidas.add("tipo_construccion");
+      if (nombre.includes("rescat")) salidas.add("rescatable");
+    }));
+    return salidas;
+  }
+
+  function sinEntrenar(valor, salida, noEntrenadas) {
+    return (valor === null || valor === undefined) && noEntrenadas.has(salida);
+  }
+
+  function resumenFotos(exteriores, interiores) {
+    return `${plural(exteriores, "exterior", "exteriores")} y ${plural(interiores, "interior", "interiores")}`;
+  }
+
+  // ---------- Estado ----------
+  let modo = "una";
+  let analizando = false;
+  let archivoSeleccionado = null;
+  let urlPreviewUnica = null;
+  let urlsResultado = [];
+  // Cada foto: { id, archivo, vista: "exterior" | "interior", url, error }
+  let fotosEdificio = [];
+  let siguienteIdFoto = 1;
+  let inspeccionesHistorial = [];
+  let temporizadorProgreso = null;
+  // Lo enviado en el último análisis (fotos, vistas y consentimiento), para "Volver a analizar".
+  let ultimoAnalisis = null;
+
+  // ---------- Elementos ----------
+  const inputArchivo = document.getElementById("input-archivo");
+  const inputCamara = document.getElementById("input-camara");
+  const btnCamara = document.getElementById("btn-camara");
+  const zonaCarga = document.getElementById("zona-carga");
+  const contenidoZona = document.getElementById("contenido-zona");
+  const archivoInfo = document.getElementById("archivo-info");
+  const panelEdificio = document.getElementById("panel-edificio");
+  const hojaContactos = document.getElementById("hoja-contactos");
+  const contadorFotos = document.getElementById("contador-fotos");
+  const avisosCarga = document.getElementById("avisos-carga");
+  const btnAnalizar = document.getElementById("btn-analizar");
+  const barraAccion = document.getElementById("barra-accion");
+  const progreso = document.getElementById("progreso");
+  const progresoMensaje = document.getElementById("progreso-mensaje");
+  const progresoSegundos = document.getElementById("progreso-segundos");
+  const divResultado = document.getElementById("resultado");
+  const divHistorial = document.getElementById("historial");
+  const estadoServidor = document.getElementById("estado-servidor");
+  const tituloFotos = document.getElementById("titulo-fotos");
+  const anuncio = document.getElementById("anuncio");
+  const botonesModo = document.querySelectorAll(".selector-modo button");
+
+  // ---------- Carga de fotos ----------
+  function edificioLleno() {
+    return fotosEdificio.length >= MAXIMO_FOTOS_EDIFICIO;
+  }
+
+  function abrirSelector() {
+    if (modo === "edificio" && edificioLleno()) return;
+    inputArchivo.click();
+  }
+
+  zonaCarga.addEventListener("click", abrirSelector);
+  zonaCarga.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      abrirSelector();
+    }
+  });
+  ["dragenter", "dragover"].forEach(evento => zonaCarga.addEventListener(evento, (e) => {
+    e.preventDefault();
+    zonaCarga.classList.add("arrastrando");
+  }));
+  ["dragleave", "drop"].forEach(evento => zonaCarga.addEventListener(evento, (e) => {
+    e.preventDefault();
+    zonaCarga.classList.remove("arrastrando");
+  }));
+  zonaCarga.addEventListener("drop", (e) => manejarArchivos(Array.from(e.dataTransfer.files)));
+
+  // Se limpia el valor para que volver a elegir el mismo archivo dispare "change".
+  inputArchivo.addEventListener("change", () => {
+    manejarArchivos(Array.from(inputArchivo.files));
+    inputArchivo.value = "";
+  });
+  btnCamara.addEventListener("click", () => {
+    if (modo === "edificio" && edificioLleno()) return;
+    inputCamara.click();
+  });
+  inputCamara.addEventListener("change", () => {
+    manejarArchivos(Array.from(inputCamara.files));
+    inputCamara.value = "";
+  });
+  botonesModo.forEach(boton => boton.addEventListener("click", () => cambiarModo(boton.dataset.modo)));
+
+  function validarArchivo(archivo) {
+    if (!TIPOS_PERMITIDOS.includes(archivo.type)) return "el formato no es JPG, PNG ni WEBP";
+    if (archivo.size > TAMANO_MAXIMO) return "pesa más de 8 MB; usa una foto más liviana";
+    return null;
+  }
+
+  function mostrarAvisos(titulo, detalles = []) {
+    avisosCarga.innerHTML = "";
+    if (!titulo) return;
+    const caja = document.createElement("div");
+    caja.className = "aviso aviso-error";
+    const fuerte = document.createElement("strong");
+    fuerte.textContent = titulo;
+    caja.appendChild(fuerte);
+    if (detalles.length) {
+      const lista = document.createElement("ul");
+      detalles.forEach(t => {
+        const li = document.createElement("li");
+        li.textContent = t;
+        lista.appendChild(li);
+      });
+      caja.appendChild(lista);
+    }
+    avisosCarga.appendChild(caja);
+  }
+
+  function manejarArchivos(archivos) {
+    if (!archivos.length) return;
+    if (modo === "una") seleccionarFotoUnica(archivos[0]);
+    else agregarFotosEdificio(archivos);
+  }
+
+  function seleccionarFotoUnica(archivo) {
+    const error = validarArchivo(archivo);
+    if (error) {
+      mostrarAvisos(`No se puede usar "${archivo.name}": ${error}.`);
+      return;
+    }
+    mostrarAvisos(null);
+    if (urlPreviewUnica) URL.revokeObjectURL(urlPreviewUnica);
+    archivoSeleccionado = archivo;
+    urlPreviewUnica = URL.createObjectURL(archivo);
+    renderizarZona();
+    renderizarInfoFotoUnica();
+    actualizarBotonAnalizar();
+  }
+
+  function agregarFotosEdificio(archivos) {
+    const rechazadas = [];
+    let ignoradasPorLimite = 0;
+    archivos.forEach(archivo => {
+      if (edificioLleno()) {
+        ignoradasPorLimite++;
+        return;
+      }
+      const error = validarArchivo(archivo);
+      if (error) {
+        rechazadas.push(`${archivo.name}: ${error}.`);
+        return;
+      }
+      fotosEdificio.push({ id: siguienteIdFoto++, archivo, vista: "exterior", url: URL.createObjectURL(archivo), error: null });
+    });
+    if (ignoradasPorLimite) {
+      rechazadas.push(`${plural(ignoradasPorLimite, "foto no se agregó", "fotos no se agregaron")} porque el máximo es ${MAXIMO_FOTOS_EDIFICIO} por edificio.`);
+    }
+    mostrarAvisos(rechazadas.length ? "Estas fotos no se agregaron:" : null, rechazadas);
+    renderizarFotosEdificio();
+  }
+
+  function quitarFotoEdificio(id) {
+    const posicion = fotosEdificio.findIndex(f => f.id === id);
+    if (posicion === -1) return;
+    URL.revokeObjectURL(fotosEdificio[posicion].url);
+    fotosEdificio.splice(posicion, 1);
+    mostrarAvisos(null);
+    renderizarFotosEdificio();
+    const siguiente = hojaContactos.querySelectorAll(".contacto-quitar")[Math.min(posicion, fotosEdificio.length - 1)];
+    (siguiente || zonaCarga).focus();
+  }
+
+  function renderizarZona() {
+    zonaCarga.classList.remove("compacta", "llena", "con-foto");
+
+    if (modo === "una") {
+      zonaCarga.setAttribute("aria-label", archivoSeleccionado ? "Cambiar la foto seleccionada" : "Elegir o arrastrar una foto");
+      if (archivoSeleccionado) {
+        zonaCarga.classList.add("con-foto");
+        contenidoZona.innerHTML = `<img class="vista-previa"><p class="zona-pista">Haz clic en la foto para ampliarla. Para cambiarla, arrastra otra encima.</p>`;
+        const img = contenidoZona.querySelector("img");
+        img.src = urlPreviewUnica;
+        img.alt = `Foto seleccionada: ${archivoSeleccionado.name}`;
+        img.addEventListener("click", (e) => {
+          e.stopPropagation();
+          abrirLightbox(urlPreviewUnica, img.alt, img);
+        });
+      } else {
+        contenidoZona.innerHTML = `<div class="zona-texto">${ICONO_FOTO}<div>
+          <p class="zona-titulo">Arrastra la foto aquí o haz clic para elegirla</p>
+          <p class="zona-pista">JPG, PNG o WEBP de hasta 8 MB.</p></div></div>`;
+      }
+      return;
+    }
+
+    const total = fotosEdificio.length;
+    zonaCarga.setAttribute("aria-label", edificioLleno() ? "Máximo de fotos alcanzado" : "Agregar o arrastrar fotos del edificio");
+    if (edificioLleno()) {
+      zonaCarga.classList.add("compacta", "llena");
+      contenidoZona.innerHTML = `<div class="zona-texto">${ICONO_FOTO}<div>
+        <p class="zona-titulo">Ya tienes ${MAXIMO_FOTOS_EDIFICIO} fotos, el máximo.</p>
+        <p class="zona-pista">Quita una para agregar otra.</p></div></div>`;
+    } else if (total > 0) {
+      zonaCarga.classList.add("compacta");
+      const restantes = MAXIMO_FOTOS_EDIFICIO - total;
+      contenidoZona.innerHTML = `<div class="zona-texto">${ICONO_FOTO}<div>
+        <p class="zona-titulo">Agregar más fotos</p>
+        <p class="zona-pista">Puedes agregar ${plural(restantes, "foto más", "fotos más")}.</p></div></div>`;
+    } else {
+      contenidoZona.innerHTML = `<div class="zona-texto">${ICONO_FOTO}<div>
+        <p class="zona-titulo">Arrastra las fotos aquí o haz clic para elegirlas</p>
+        <p class="zona-pista">Hasta ${MAXIMO_FOTOS_EDIFICIO} fotos, exteriores e interiores. JPG, PNG o WEBP de hasta 8 MB cada una.</p></div></div>`;
+    }
+  }
+
+  function renderizarInfoFotoUnica() {
+    archivoInfo.innerHTML = "";
+    if (modo !== "una" || !archivoSeleccionado) return;
+    const fila = document.createElement("div");
+    fila.className = "archivo-info";
+    const nombre = document.createElement("span");
+    nombre.textContent = `${archivoSeleccionado.name} (${Math.round(archivoSeleccionado.size / 1024)} KB)`;
+    const btnCambiar = document.createElement("button");
+    btnCambiar.type = "button";
+    btnCambiar.className = "btn-enlace";
+    btnCambiar.textContent = "Cambiar foto";
+    btnCambiar.addEventListener("click", () => inputArchivo.click());
+    const btnAmpliar = document.createElement("button");
+    btnAmpliar.type = "button";
+    btnAmpliar.className = "btn-enlace";
+    btnAmpliar.textContent = "Ampliar foto";
+    btnAmpliar.addEventListener("click", () => abrirLightbox(urlPreviewUnica, `Foto seleccionada: ${archivoSeleccionado.name}`, btnAmpliar));
+    const acciones = document.createElement("span");
+    acciones.className = "archivo-acciones";
+    acciones.append(btnAmpliar, btnCambiar);
+    fila.append(nombre, acciones);
+    archivoInfo.appendChild(fila);
+  }
+
+  function renderizarFotosEdificio() {
+    hojaContactos.innerHTML = "";
+    fotosEdificio.forEach((foto, indice) => {
+      const numero = indice + 1;
+      const li = document.createElement("li");
+      li.className = foto.error ? "contacto con-error" : "contacto";
+      li.innerHTML = `
+        <div class="contacto-foto">
+          <img alt="">
+          <span class="contacto-numero" aria-hidden="true">${numero}</span>
+          <button type="button" class="contacto-quitar">${ICONO_QUITAR}</button>
+        </div>
+        <p class="contacto-nombre"></p>
+        <fieldset class="selector-vista">
+          <legend class="sr-only">Vista de la foto ${numero}</legend>
+          <label><input type="radio" name="vista-${foto.id}" value="exterior"><span>Exterior</span></label>
+          <label><input type="radio" name="vista-${foto.id}" value="interior"><span>Interior</span></label>
+        </fieldset>
+      `;
+      const img = li.querySelector("img");
+      img.src = foto.url;
+      img.alt = `Foto ${numero}: ${foto.archivo.name}`;
+      hacerAmpliable(img, foto.url, img.alt);
+
+      const nombre = li.querySelector(".contacto-nombre");
+      nombre.textContent = foto.archivo.name;
+      nombre.title = foto.archivo.name;
+
+      const btnQuitar = li.querySelector(".contacto-quitar");
+      btnQuitar.setAttribute("aria-label", `Quitar la foto ${numero}`);
+      btnQuitar.addEventListener("click", () => quitarFotoEdificio(foto.id));
+
+      if (foto.error) {
+        const aviso = document.createElement("p");
+        aviso.className = "contacto-error";
+        aviso.textContent = foto.error;
+        li.appendChild(aviso);
+      }
+
+      li.querySelectorAll('input[type="radio"]').forEach(radio => {
+        radio.checked = radio.value === foto.vista;
+        radio.addEventListener("change", () => {
+          foto.vista = radio.value;
+          if (foto.error) {
+            foto.error = null;
+            li.classList.remove("con-error");
+            li.querySelector(".contacto-error")?.remove();
+          }
+          actualizarContador();
+        });
+      });
+      hojaContactos.appendChild(li);
+    });
+
+    actualizarContador();
+    renderizarZona();
+    actualizarBotonAnalizar();
+  }
+
+  function actualizarContador() {
+    const total = fotosEdificio.length;
+    if (!total) {
+      contadorFotos.textContent = "Todavía no agregas fotos.";
+      return;
+    }
+    const interiores = fotosEdificio.filter(f => f.vista === "interior").length;
+    contadorFotos.textContent = `${total} de ${MAXIMO_FOTOS_EDIFICIO} fotos: ${resumenFotos(total - interiores, interiores)}.`;
+  }
+
+  function actualizarBotonAnalizar() {
+    if (analizando) return;
+    if (modo === "una") {
+      btnAnalizar.textContent = "Analizar foto";
+      btnAnalizar.disabled = !archivoSeleccionado;
+    } else {
+      const n = fotosEdificio.length;
+      btnAnalizar.textContent = n ? `Analizar ${plural(n, "foto", "fotos")}` : "Analizar fotos";
+      btnAnalizar.disabled = !n;
+    }
+  }
+
+  function cambiarModo(nuevoModo) {
+    if (nuevoModo === modo || analizando) return;
+    modo = nuevoModo;
+    botonesModo.forEach(boton => boton.setAttribute("aria-pressed", String(boton.dataset.modo === modo)));
+    tituloFotos.textContent = modo === "edificio" ? "Fotos del edificio" : "Foto de la fachada";
+    inputArchivo.multiple = modo === "edificio";
+    panelEdificio.hidden = modo !== "edificio";
+    btnCamara.textContent = modo === "edificio" ? "Agregar foto con la cámara" : "Tomar foto con la cámara";
+    mostrarAvisos(null);
+    renderizarZona();
+    renderizarInfoFotoUnica();
+    if (modo === "edificio") renderizarFotosEdificio();
+    actualizarBotonAnalizar();
+  }
+
+  // ---------- Progreso (con IA el análisis puede tardar hasta ~60 s) ----------
+  // conIA: hay sesión o consentimiento; sin IA no se anuncian etapas de la IA.
+  function iniciarProgreso(totalFotos, { conIA }) {
+    const inicio = Date.now();
+    let etapa = -1;
+    const inicial = { desde: 0, texto: totalFotos === 1 ? "Analizando la foto…" : "Analizando las fotos…" };
+    const etapas = conIA
+      ? [
+          inicial,
+          { desde: 5, texto: "Redactando la explicación con IA…" },
+          { desde: 25, texto: "La IA está tardando más de lo normal; puede tomar hasta un minuto." },
+        ]
+      : [inicial];
+    const actualizar = () => {
+      const segundos = Math.floor((Date.now() - inicio) / 1000);
+      progresoSegundos.textContent = `${segundos} s`;
+      const actual = etapas.filter(e => segundos >= e.desde).length - 1;
+      if (actual !== etapa) {
+        etapa = actual;
+        progresoMensaje.textContent = etapas[actual].texto;
+      }
+    };
+    progreso.hidden = false;
+    actualizar();
+    temporizadorProgreso = setInterval(actualizar, 1000);
+  }
+
+  function detenerProgreso() {
+    clearInterval(temporizadorProgreso);
+    temporizadorProgreso = null;
+    progreso.hidden = true;
+    progresoMensaje.textContent = "";
+  }
+
+  // ---------- Barra fija en celular: deja espacio abajo para que no tape nada ----------
+  function actualizarAltoBarra() {
+    const fija = getComputedStyle(barraAccion).position === "fixed";
+    document.documentElement.style.setProperty("--alto-barra", fija ? `${barraAccion.offsetHeight}px` : "0px");
+  }
+  new ResizeObserver(actualizarAltoBarra).observe(barraAccion);
+  window.addEventListener("resize", actualizarAltoBarra);
+
+  // ---------- Sesión (token en sessionStorage: se borra al cerrar la pestaña) ----------
+  const CLAVE_SESION = "evaluacion-fachadas.sesion";
+  const MENSAJE_SESION_VENCIDA = "Tu sesión venció. Ingresa de nuevo.";
+  const PATRON_USUARIO = /^[A-Za-z0-9._]{3,30}$/;
+
+  class SesionVencida extends Error {}
+  class LimiteAnalisis extends Error {}
+  class TiempoAgotado extends Error {}
+
+  // Con explicación por IA y sus reintentos, el backend puede tardar hasta ~60 s.
+  const LIMITE_ANALISIS_MS = 90 * 1000;
+
+  function leerSesionGuardada() {
+    try {
+      const guardada = JSON.parse(sessionStorage.getItem(CLAVE_SESION) || "null");
+      return guardada && typeof guardada.token === "string" && typeof guardada.usuario === "string" ? guardada : null;
+    } catch {
+      return null;
+    }
+  }
+
+  let sesion = leerSesionGuardada();
+
+  function guardarSesion(nueva) {
+    sesion = nueva;
+    try {
+      if (nueva) sessionStorage.setItem(CLAVE_SESION, JSON.stringify(nueva));
+      else sessionStorage.removeItem(CLAVE_SESION);
+    } catch {
+      // Sin almacenamiento disponible: la sesión dura lo que dure la página.
+    }
+  }
+
+  // Toda petición al backend pasa por aquí: agrega el token y trata un 401 como sesión vencida.
+  // Login y registro manejan su propio 401 (usuario o contraseña incorrectos).
+  // limiteMs: corta la petición si el servidor no responde a tiempo.
+  async function api(ruta, opciones = {}, { manejar401 = true, limiteMs = null } = {}) {
+    const encabezados = new Headers(opciones.headers || {});
+    if (sesion) encabezados.set("Authorization", `Bearer ${sesion.token}`);
+    const control = limiteMs ? new AbortController() : null;
+    const temporizador = control ? setTimeout(() => control.abort(), limiteMs) : null;
+    let respuesta;
+    try {
+      respuesta = await fetch(`${URL_API}${ruta}`, { ...opciones, headers: encabezados, signal: control?.signal });
+    } catch {
+      if (control?.signal.aborted) throw new TiempoAgotado(mensajeTiempoAgotado(limiteMs));
+      throw new Error(MENSAJE_SIN_CONEXION);
+    } finally {
+      clearTimeout(temporizador);
+    }
+    if (respuesta.status === 401 && manejar401 && sesion) {
+      sesionVencida();
+      throw new SesionVencida(MENSAJE_SESION_VENCIDA);
+    }
+    return respuesta;
+  }
+
+  function mensajeTiempoAgotado(limiteMs) {
+    const base = `El servidor no respondió en ${Math.round(limiteMs / 1000)} segundos y el análisis se canceló. Revisa tu conexión y vuelve a intentar.`;
+    // Con sesión, el servidor pudo terminar y guardarlo igual: se evita duplicar la inspección.
+    return sesion ? `${base} Antes, revisa tu historial: el análisis pudo haberse guardado.` : base;
+  }
+
+  function enviarJson(metodo, cuerpo) {
+    return { method: metodo, headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) };
+  }
+
+  async function detalleDeError(respuesta, porDefecto) {
+    const cuerpo = await respuesta.json().catch(() => ({}));
+    return typeof cuerpo.detail === "string" ? cuerpo.detail : porDefecto;
+  }
+
+  const zonaSesion = document.getElementById("zona-sesion");
+  const avisoSesion = document.getElementById("aviso-sesion");
+  const accionesHistorial = document.getElementById("acciones-historial");
+  const zonaCuenta = document.getElementById("zona-cuenta");
+  const consentimientoIa = document.getElementById("consentimiento-ia");
+  const aceptaEnvioIa = document.getElementById("acepta-envio-ia");
+  const divExportarInfo = document.getElementById("exportar-info");
+
+  function boton(textoBoton, clase, alHacerClic) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = clase;
+    b.textContent = textoBoton;
+    b.addEventListener("click", alHacerClic);
+    return b;
+  }
+
+  function renderizarSesion() {
+    zonaSesion.innerHTML = "";
+    if (sesion) {
+      const nombre = document.createElement("span");
+      nombre.className = "usuario-activo";
+      nombre.textContent = sesion.usuario;
+      zonaSesion.append(nombre, boton("Cerrar sesión", "btn btn-secundario", cerrarSesion));
+    } else {
+      zonaSesion.append(
+        boton("Ingresar", "btn btn-secundario", () => abrirDialogo("ingresar")),
+        boton("Crear cuenta", "btn btn-primario", () => abrirDialogo("registro")),
+      );
+    }
+    accionesHistorial.hidden = !sesion;
+    zonaCuenta.hidden = !sesion;
+    // Con sesión el consentimiento ya se dio al crear la cuenta; sin sesión empieza sin marcar.
+    aceptaEnvioIa.checked = false;
+    consentimientoIa.hidden = !!sesion;
+  }
+
+  // Sin sesión, la foto solo va a Gemini si la persona marcó la casilla.
+  function consentimientoIaMarcado() {
+    return !sesion && aceptaEnvioIa.checked;
+  }
+
+  function mostrarAvisoSesion(mensaje, { conIngresar = false } = {}) {
+    avisoSesion.innerHTML = "";
+    avisoSesion.hidden = !mensaje;
+    if (!mensaje) return;
+    const p = document.createElement("p");
+    p.textContent = mensaje;
+    avisoSesion.appendChild(p);
+    if (conIngresar) avisoSesion.appendChild(boton("Ingresar", "btn btn-secundario", () => abrirDialogo("ingresar")));
+  }
+
+  function sesionVencida() {
+    guardarSesion(null);
+    revocarMiniaturas();
+    inspeccionesHistorial = [];
+    renderizarSesion();
+    renderizarHistorialSinSesion();
+    document.querySelectorAll("dialog[open]").forEach(d => d.close());
+    mostrarAvisoSesion(MENSAJE_SESION_VENCIDA, { conIngresar: true });
+  }
+
+  // En un equipo compartido (puesto de mando) no deben quedar a la vista fotos ni resultados de otra persona.
+  function limpiarDatosDeLaSesion() {
+    revocarMiniaturas();
+    inspeccionesHistorial = [];
+    urlsResultado.forEach(url => URL.revokeObjectURL(url));
+    urlsResultado = [];
+    fotosEdificio.forEach(f => URL.revokeObjectURL(f.url));
+    fotosEdificio = [];
+    if (urlPreviewUnica) URL.revokeObjectURL(urlPreviewUnica);
+    urlPreviewUnica = null;
+    archivoSeleccionado = null;
+    ultimoAnalisis = null;
+    mostrarAvisos(null);
+    renderizarInfoFotoUnica();
+    renderizarFotosEdificio();
+    mostrarFichaVacia();
+    renderizarHistorialSinSesion();
+  }
+
+  // ---------- Diálogos de cuenta ----------
+  const dialogos = {
+    ingresar: document.getElementById("dialogo-ingresar"),
+    registro: document.getElementById("dialogo-registro"),
+    eliminar: document.getElementById("dialogo-eliminar"),
+  };
+
+  function abrirDialogo(nombre) {
+    Object.values(dialogos).forEach(d => { if (d.open) d.close(); });
+    const dialogo = dialogos[nombre];
+    const form = dialogo.querySelector("form");
+    form.reset();
+    errorDialogo(form, null);
+    dialogo.showModal();
+    form.querySelector("input").focus();
+  }
+
+  function errorDialogo(form, mensaje, campo) {
+    form.querySelectorAll("[aria-invalid]").forEach(el => el.removeAttribute("aria-invalid"));
+    form.querySelector(".dialogo-error").textContent = mensaje || "";
+    if (campo) {
+      campo.setAttribute("aria-invalid", "true");
+      campo.focus();
+    }
+  }
+
+  async function conBotonOcupado(form, textoOcupado, tarea) {
+    const enviar = form.querySelector('[type="submit"]');
+    const original = enviar.textContent;
+    enviar.disabled = true;
+    enviar.textContent = textoOcupado;
+    try {
+      await tarea();
+    } finally {
+      enviar.disabled = false;
+      enviar.textContent = original;
+    }
+  }
+
+  document.addEventListener("click", (e) => {
+    const abrir = e.target.closest("[data-abrir]");
+    if (abrir) {
+      abrirDialogo(abrir.dataset.abrir);
+      return;
+    }
+    const cerrar = e.target.closest("[data-cerrar]");
+    if (cerrar) cerrar.closest("dialog").close();
+  });
+
+  async function iniciarSesion(usuario, contrasena) {
+    const respuesta = await api("/auth/login", enviarJson("POST", { usuario, contrasena }), { manejar401: false });
+    if (!respuesta.ok) {
+      const porDefecto = respuesta.status === 401
+        ? "Usuario o contraseña incorrectos."
+        : "No se pudo iniciar sesión. Vuelve a intentar en unos segundos.";
+      throw new Error(await detalleDeError(respuesta, porDefecto));
+    }
+    const datos = await respuesta.json();
+    guardarSesion({ token: datos.token, expira: datos.expira, usuario: datos.usuario?.usuario || usuario });
+    mostrarAvisoSesion(null);
+    renderizarSesion();
+    cargarHistorial();
+  }
+
+  document.getElementById("form-ingresar").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const c = form.elements;
+    const usuario = c.usuario.value.trim();
+    if (!usuario) return errorDialogo(form, "Escribe tu usuario.", c.usuario);
+    if (!c.contrasena.value) return errorDialogo(form, "Escribe tu contraseña.", c.contrasena);
+    errorDialogo(form, null);
+    await conBotonOcupado(form, "Ingresando…", async () => {
+      try {
+        await iniciarSesion(usuario, c.contrasena.value);
+        dialogos.ingresar.close();
+      } catch (error) {
+        errorDialogo(form, error.message);
+      }
+    });
+  });
+
+  document.getElementById("form-registro").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const c = form.elements;
+    const usuario = c.usuario.value.trim();
+    const contrasena = c.contrasena.value;
+    if (!PATRON_USUARIO.test(usuario)) {
+      return errorDialogo(form, "El usuario debe tener de 3 a 30 caracteres: letras sin tilde ni ñ, números, punto o guion bajo.", c.usuario);
+    }
+    if (contrasena.length < 8 || contrasena.length > 128) {
+      return errorDialogo(form, "La contraseña debe tener entre 8 y 128 caracteres.", c.contrasena);
+    }
+    if (c.confirmar.value !== contrasena) {
+      return errorDialogo(form, "Las contraseñas no coinciden. Escríbela igual en los dos campos.", c.confirmar);
+    }
+    if (!c.acepta.checked) {
+      return errorDialogo(form, "Para crear una cuenta, marca la casilla del aviso de privacidad.", c.acepta);
+    }
+    errorDialogo(form, null);
+    await conBotonOcupado(form, "Creando cuenta…", async () => {
+      try {
+        const respuesta = await api("/auth/registro",
+          enviarJson("POST", { usuario, contrasena, acepta_privacidad: true }), { manejar401: false });
+        if (!respuesta.ok) {
+          const detalle = await detalleDeError(respuesta, "No se pudo crear la cuenta. Vuelve a intentar en unos segundos.");
+          if (respuesta.status === 409) return errorDialogo(form, `${detalle} Elige otro nombre de usuario.`, c.usuario);
+          return errorDialogo(form, detalle);
+        }
+        await iniciarSesion(usuario, contrasena);
+        dialogos.registro.close();
+        mostrarAvisoSesion("Cuenta creada. Desde ahora tus análisis se guardan en tu historial.");
+      } catch (error) {
+        errorDialogo(form, error.message);
+      }
+    });
+  });
+
+  async function cerrarSesion() {
+    if (sesion) {
+      try {
+        await api("/auth/logout", { method: "POST" }, { manejar401: false });
+      } catch {
+        // Aunque el servidor no responda, la sesión se cierra en este equipo.
+      }
+    }
+    guardarSesion(null);
+    renderizarSesion();
+    limpiarDatosDeLaSesion();
+    mostrarAvisoSesion("Cerraste sesión. Puedes seguir analizando sin cuenta.");
+  }
+
+  document.getElementById("btn-eliminar-cuenta").addEventListener("click", () => abrirDialogo("eliminar"));
+
+  document.getElementById("form-eliminar").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const c = form.elements;
+    if (!c.contrasena.value) return errorDialogo(form, "Escribe tu contraseña para confirmar.", c.contrasena);
+    errorDialogo(form, null);
+    await conBotonOcupado(form, "Eliminando…", async () => {
+      try {
+        const respuesta = await api("/auth/cuenta", enviarJson("DELETE", { contrasena: c.contrasena.value }));
+        if (!respuesta.ok) {
+          const detalle = await detalleDeError(respuesta, "No se pudo eliminar la cuenta. Vuelve a intentar.");
+          if (respuesta.status === 403) return errorDialogo(form, `${detalle} Vuelve a escribirla.`, c.contrasena);
+          return errorDialogo(form, detalle);
+        }
+        dialogos.eliminar.close();
+        guardarSesion(null);
+        renderizarSesion();
+        limpiarDatosDeLaSesion();
+        mostrarAvisoSesion("Tu cuenta y todos tus datos se eliminaron.");
+      } catch (error) {
+        if (!(error instanceof SesionVencida)) errorDialogo(form, error.message);
+      }
+    });
+  });
+
+  async function comprobarSesionGuardada() {
+    if (!sesion) return;
+    try {
+      const respuesta = await api("/auth/yo");
+      if (respuesta.ok) {
+        const datos = await respuesta.json();
+        guardarSesion({ ...sesion, usuario: datos.usuario });
+        renderizarSesion();
+      }
+    } catch {
+      // Sin conexión: se conserva la sesión; la próxima petición la vuelve a comprobar.
+    }
+  }
+
+  // ---------- Análisis ----------
+  function comenzarAnalisis(totalFotos, conIA) {
+    analizando = true;
+    btnAnalizar.disabled = true;
+    btnAnalizar.textContent = "Analizando…";
+    botonesModo.forEach(b => { b.disabled = true; });
+    iniciarProgreso(totalFotos, { conIA });
+    mostrarFichaPendiente(conIA);
+  }
+
+  function terminarAnalisis() {
+    analizando = false;
+    botonesModo.forEach(b => { b.disabled = false; });
+    detenerProgreso();
+    actualizarBotonAnalizar();
+  }
+
+  function mostrarErrorAnalisis(error) {
+    if (error instanceof SesionVencida) mostrarErrorResultado(error.message, { acciones: "ingresar" });
+    else if (error instanceof TiempoAgotado) {
+      mostrarErrorResultado(error.message, { acciones: "reintentar" });
+      if (sesion) cargarHistorial();
+    } else if (error instanceof LimiteAnalisis) mostrarErrorResultado(error.message, { acciones: sesion ? null : "cuenta" });
+    else mostrarErrorResultado(error.message);
+  }
+
+  btnAnalizar.addEventListener("click", () => {
+    if (modo === "una") analizarUnaFoto();
+    else analizarEdificio();
+  });
+
+  divResultado.addEventListener("click", (e) => {
+    if (!e.target.closest("[data-reintentar]") || !ultimoAnalisis || analizando) return;
+    if (ultimoAnalisis.modo === "una") analizarUnaFoto(ultimoAnalisis);
+    else analizarEdificio(ultimoAnalisis);
+  });
+
+  async function analizarUnaFoto(repetir = null) {
+    const archivo = repetir ? repetir.archivo : archivoSeleccionado;
+    if (!archivo || analizando) return;
+    const aceptaIa = repetir ? repetir.aceptaIa : consentimientoIaMarcado();
+    ultimoAnalisis = { modo: "una", archivo, aceptaIa };
+    mostrarAvisos(null);
+    comenzarAnalisis(1, !!sesion || aceptaIa);
+
+    const formData = new FormData();
+    formData.append("archivo", archivo);
+    if (aceptaIa) formData.append("acepta_envio_ia", "true");
+    try {
+      const respuesta = await api("/analizar", { method: "POST", body: formData }, { limiteMs: LIMITE_ANALISIS_MS });
+      if (!respuesta.ok) {
+        const detalle = await detalleDeError(respuesta, "El servidor no pudo analizar la foto.");
+        if (respuesta.status === 429) throw new LimiteAnalisis(detalle);
+        // 422 (foto ilegible) y 503 (modelo no disponible) ya traen el mensaje completo del backend.
+        if (respuesta.status === 422 || respuesta.status === 503) throw new Error(detalle);
+        throw new Error(`${detalle} Prueba con otra foto o vuelve a intentar.`);
+      }
+      const r = await respuesta.json();
+      mostrarResultado(normalizarUnaFoto(r, archivo), [{ archivo }]);
+      if (sesion) cargarHistorial();
+    } catch (error) {
+      mostrarErrorAnalisis(error);
+    } finally {
+      terminarAnalisis();
+    }
+  }
+
+  // /analizar devuelve el resultado plano; se lleva a la misma forma que una inspección.
+  function normalizarUnaFoto(r, archivo) {
+    const rescatableFuente = r.rescatable_fuente ?? r.veredicto?.rescatable_fuente ?? null;
+    const tipoFuente = r.tipo_construccion_fuente ?? null;
+    return {
+      inspeccion_id: r.inspeccion_id ?? null,
+      guardado: r.guardado,
+      total_fotos: 1,
+      usando_modelo_real: r.usando_modelo_real,
+      veredicto: {
+        nivel_dano: r.nivel_dano,
+        tipo_construccion: r.tipo_construccion,
+        tipo_construccion_fuente: tipoFuente,
+        rescatable: r.rescatable,
+        rescatable_fuente: rescatableFuente,
+        recomendacion: r.recomendacion,
+        fotos_exteriores: 1,
+        fotos_interiores: 0,
+        nota: null,
+      },
+      fotos: [{
+        indice: 1, nombre_archivo: archivo.name, vista: "exterior", nivel_dano: r.nivel_dano,
+        tipo_construccion: r.tipo_construccion, tipo_construccion_fuente: tipoFuente,
+        rescatable: r.rescatable, rescatable_fuente: rescatableFuente,
+        confianza: r.confianza, probabilidades: r.probabilidades ?? null,
+        baja_confianza: r.baja_confianza ?? null, tiene_miniatura: r.tiene_miniatura,
+      }],
+      explicacion: r.explicacion ?? null,
+      cabezas_no_entrenadas: r.cabezas_no_entrenadas ?? [],
+    };
+  }
+
+  async function analizarEdificio(repetir = null) {
+    if (analizando) return;
+    // Copia del orden enviado: el "indice" N de la respuesta corresponde a enviadas[N - 1].
+    const enviadas = repetir ? repetir.fotos : [...fotosEdificio];
+    if (!enviadas.length) return;
+    const vistas = repetir ? repetir.vistas : enviadas.map(f => f.vista);
+    const aceptaIa = repetir ? repetir.aceptaIa : consentimientoIaMarcado();
+    ultimoAnalisis = { modo: "edificio", fotos: enviadas, vistas, aceptaIa };
+    enviadas.forEach(f => { f.error = null; });
+    mostrarAvisos(null);
+    renderizarFotosEdificio();
+    comenzarAnalisis(enviadas.length, !!sesion || aceptaIa);
+
+    const formData = new FormData();
+    enviadas.forEach((f, i) => {
+      formData.append("archivos", f.archivo);
+      formData.append("vistas", vistas[i]);
+    });
+    if (aceptaIa) formData.append("acepta_envio_ia", "true");
+
+    try {
+      const respuesta = await api("/analizar-edificio", { method: "POST", body: formData }, { limiteMs: LIMITE_ANALISIS_MS });
+      if (!respuesta.ok) {
+        const detalle = await detalleDeError(respuesta, "El servidor no pudo analizar las fotos.");
+        if (respuesta.status === 429) throw new LimiteAnalisis(detalle);
+        if (respuesta.status === 503) throw new Error(detalle);
+        const marcada = marcarFotoConError(detalle, enviadas);
+        throw new Error(marcada
+          ? `${detalle} Quita o cambia esa foto (está marcada en rojo) y vuelve a intentar.`
+          : `${detalle} Revisa las fotos y vuelve a intentar.`);
+      }
+      mostrarResultado(await respuesta.json(), enviadas);
+      if (sesion) cargarHistorial();
+    } catch (error) {
+      mostrarErrorAnalisis(error);
+    } finally {
+      terminarAnalisis();
+    }
+  }
+
+  // Los 400/413 dicen "Foto N: ..." y el 500 "...la foto N...", con N = indice (desde 1).
+  function marcarFotoConError(detalle, enviadas) {
+    const coincidencia = detalle.match(/\bfoto (\d+)\b/i);
+    if (!coincidencia) return false;
+    const foto = enviadas[Number(coincidencia[1]) - 1];
+    if (!foto || !fotosEdificio.includes(foto)) return false;
+    foto.error = detalle.replace(/^Foto \d+:\s*/, "");
+    renderizarFotosEdificio();
+    return true;
+  }
+
+  // ---------- Ficha, explicación y fotos (compartidos con el historial) ----------
+  function htmlFicha(r, { nueva = false } = {}) {
+    const v = r.veredicto;
+    const e = estadoFicha(r);
+    const x = r.explicacion;
+    const numero = r.inspeccion_id !== null && r.inspeccion_id !== undefined
+      ? `<span class="ficha-numero">Ficha N.º ${Number(r.inspeccion_id)}</span>` : "";
+
+    const franjas = [];
+    if (x && x.discrepancia !== null && x.discrepancia !== undefined) {
+      franjas.push("Revisar: la IA observa algo distinto a la clasificación.");
+    }
+    if (x && x.imagen_valida === false) {
+      franjas.push("Revisar: una foto no parece mostrar una edificación.");
+    }
+    // baja_confianza es null en el historial antiguo: solo cuenta un true explícito.
+    if ((r.fotos || []).some(f => f.baja_confianza === true)) {
+      franjas.push("El modelo duda entre dos niveles en al menos una foto: revisar con especial atención.");
+    }
+
+    // Una salida sin entrenar dice solo "No disponible"; la explicación va una vez, al pie. No cambia el color.
+    const noEntrenadas = salidasNoEntrenadas(r.cabezas_no_entrenadas);
+    // El tipo depende de Gemini (la CNN no lo reconoce); si Gemini falló, se dice eso y no "no entrenado".
+    const iaNoRespondio = iaFallo(x)
+      && (v.tipo_construccion === null || v.tipo_construccion === undefined)
+      && noEntrenadas.has("tipo_construccion")
+      && Number(v.fotos_exteriores) > 0;
+    const tipo = iaNoRespondio
+      ? `<span class="no-evaluado">No disponible: la IA no respondió en este análisis</span>`
+      : htmlTipo(v.tipo_construccion, v.tipo_construccion_fuente, noEntrenadas);
+    const rescatable = htmlRescatable(v.rescatable, v.rescatable_fuente, noEntrenadas);
+    const nota = notaNoEntrenado(noEntrenadas, v.rescatable_fuente,
+      esTipoDeGemini(v.tipo_construccion, v.tipo_construccion_fuente) || iaNoRespondio
+      || tipoNoDistinguido(v.tipo_construccion, v.tipo_construccion_fuente));
+    const fecha = r.fecha ? `<div class="ficha-campo"><dt>Fecha</dt><dd>${formatearFecha(r.fecha)}</dd></div>` : "";
+
+    return `
+      <article class="ficha ${e.clase}${nueva ? " nueva" : ""}" aria-label="Evaluación sugerida: ${e.titular}">
+        <div class="ficha-banda">
+          <div class="ficha-banda-fila">
+            <h3 class="ficha-titular">${e.titular}</h3>
+            ${numero}
+          </div>
+          <p class="ficha-bajada">${e.bajada}</p>
+        </div>
+        ${franjas.map(t => `<p class="ficha-revisar">${t}</p>`).join("")}
+        <dl class="ficha-campos">
+          <div class="ficha-campo"><dt>Nivel de daño</dt><dd>${texto(v.nivel_dano)}</dd></div>
+          <div class="ficha-campo"><dt>¿Rescatable?</dt><dd>${rescatable}</dd></div>
+          <div class="ficha-campo"><dt>Tipo de construcción</dt><dd>${tipo}</dd></div>
+          <div class="ficha-campo"><dt>Fotos</dt><dd>${resumenFotos(Number(v.fotos_exteriores), Number(v.fotos_interiores))}</dd></div>
+          ${fecha}
+        </dl>
+        ${v.nota ? `<p class="ficha-nota"><strong>Nota:</strong> ${texto(v.nota)}</p>` : ""}
+        <div class="ficha-pie">
+          ${nota ? `<p>${nota}</p>` : ""}
+          <p>Sugerencia preliminar generada por IA. Un ingeniero colegiado debe validarla antes de tomar decisiones.</p>
+          ${r.usando_modelo_real === false ? "<p>Resultado simulado: el modelo de clasificación no estaba cargado.</p>" : ""}
+        </div>
+      </article>
+    `;
+  }
+
+  // Probabilidad de cada nivel (0 a 1) con los colores de la ficha. Null en el historial antiguo: nada.
+  const NIVELES_PROBABILIDAD = [
+    { clave: "Leve", clase: "verde" },
+    { clave: "Moderado", clase: "amarillo" },
+    { clave: "Severo/Colapso", clase: "rojo" },
+  ];
+  function htmlProbabilidades(probabilidades) {
+    if (!probabilidades || typeof probabilidades !== "object") return "";
+    const valores = NIVELES_PROBABILIDAD.map(n => Number(probabilidades[n.clave]));
+    if (valores.some(p => !Number.isFinite(p) || p < 0 || p > 1)) return "";
+    const filas = NIVELES_PROBABILIDAD.map((n, i) => {
+      const porcentaje = Math.round(valores[i] * 1000) / 10;
+      return `
+        <span class="probabilidad-nombre">${n.clave}</span>
+        <span class="probabilidad-barra" aria-hidden="true"><span class="relleno-${n.clase}" style="width: ${porcentaje}%"></span></span>
+        <span class="probabilidad-valor">${porcentaje}%</span>`;
+    }).join("");
+    return `<div class="probabilidades" role="group" aria-label="Probabilidad de cada nivel de daño">${filas}</div>`;
+  }
+
+  function htmlLista(items, etiqueta) {
+    const lista = Array.isArray(items) ? items : [];
+    return lista.length ? `<${etiqueta}>${lista.map(i => `<li>${texto(i)}</li>`).join("")}</${etiqueta}>` : "";
+  }
+
+  // desdeHistorial: no hay fotos locales que reenviar, así que no se ofrece "Volver a analizar".
+  function htmlExplicacion(r, { desdeHistorial = false } = {}) {
+    const x = r.explicacion;
+    if (!x || x.fuente !== "gemini") {
+      const recomendacion = x && x.viabilidad ? x.viabilidad : r.veredicto.recomendacion;
+      const botonCuenta = sesion ? "" : `<button type="button" class="btn btn-secundario btn-cta" data-abrir="registro">Crear cuenta</button>`;
+      let invitacion = "";
+      if (iaFallo(x)) {
+        invitacion = desdeHistorial
+          ? `<div class="cta-explicacion"><p>La explicación con IA no estuvo disponible cuando se hizo este análisis.</p></div>`
+          : `<div class="cta-explicacion">
+               <p>La explicación con IA no está disponible en este momento. Vuelve a analizar en un minuto.</p>
+               <button type="button" class="btn btn-secundario btn-cta" data-reintentar>Volver a analizar</button>
+             </div>`;
+      } else if (x && (x.motivo_respaldo === "sin_clave" || x.motivo_respaldo === "desactivado")) {
+        invitacion = `<div class="cta-explicacion"><p>La explicación con IA no está activada en este servidor.</p></div>`;
+      } else if (x && x.motivo_respaldo === "sin_sesion") {
+        invitacion = `<div class="cta-explicacion">
+             <p>Marca la casilla junto a Analizar o crea una cuenta para recibir la explicación detallada con IA.</p>
+             ${botonCuenta}
+           </div>`;
+      } else if (x && x.motivo_respaldo === "limite_ia") {
+        invitacion = `<div class="cta-explicacion">
+             <p>Alcanzaste el límite de explicaciones con IA por hora. Crea una cuenta o inténtalo más tarde.</p>
+             ${botonCuenta}
+           </div>`;
+      }
+      return `
+        <section class="panel explicacion">
+          <h3>Recomendación</h3>
+          <p>${texto(recomendacion)}</p>
+          ${invitacion}
+        </section>
+      `;
+    }
+
+    // La frase genérica ya está en la franja de la ficha; aquí va lo que dice la IA.
+    // Con imagen_valida = false, el backend pide a la IA indicar en "discrepancia" qué foto no muestra una edificación.
+    const avisos = [];
+    const hayDiscrepancia = x.discrepancia !== null && x.discrepancia !== undefined && String(x.discrepancia).trim() !== "";
+    if (hayDiscrepancia) {
+      avisos.push(`<div class="aviso aviso-revisar"><strong>Lo que observa la IA</strong><p>${texto(x.discrepancia)}</p></div>`);
+    } else if (x.imagen_valida === false) {
+      avisos.push(`<div class="aviso aviso-revisar"><strong>Lo que observa la IA</strong><p>Al menos una foto no muestra una edificación y la IA no indicó cuál. Revisa las fotos, cambia la que no corresponda y vuelve a analizar.</p></div>`);
+    }
+
+    const estructura = htmlLista(x.estructura, "ul");
+    const estado = htmlLista(x.estado, "ul");
+    const acciones = htmlLista(x.acciones, "ol");
+    const viabilidad = x.viabilidad ? `<p>${texto(x.viabilidad)}</p>` : "";
+
+    return `
+      <section class="panel explicacion">
+        <div class="explicacion-cabecera">
+          <h3>Explicación</h3>
+          <span class="etiqueta-ia">Redactado por IA, referencial</span>
+        </div>
+        ${avisos.join("")}
+        ${estructura ? `<h4>Estructura y tipo de construcción</h4>${estructura}` : ""}
+        ${estado ? `<h4>Estado actual</h4>${estado}` : ""}
+        ${viabilidad || acciones ? `<h4>Viabilidad y recomendaciones</h4>${viabilidad}${acciones}` : ""}
+        ${x.modelo ? `<p class="explicacion-modelo">Modelo usado: ${texto(x.modelo)}</p>` : ""}
+      </section>
+    `;
+  }
+
+  // imagenes: "locales" (fotos recién elegidas) o "miniaturas" (historial: se piden al backend con el token).
+  function htmlFotos(r, { imagenes }) {
+    const filas = [...(r.fotos || [])]
+      .sort((a, b) => a.indice - b.indice)
+      .map(f => {
+        const indice = Number(f.indice);
+        const interior = f.vista === "interior";
+        const alt = `Foto ${indice}: ${texto(f.nombre_archivo)}`;
+        let medio;
+        if (imagenes === "locales") medio = `<img alt="${alt}">`;
+        else if (f.tiene_miniatura) medio = `<img data-miniatura="${indice}" alt="${alt}">`;
+        else medio = `<div class="miniatura-vacia">Foto no guardada</div>`;
+
+        let datosVista;
+        const noEntrenadas = salidasNoEntrenadas(r.cabezas_no_entrenadas, f.cabezas_no_entrenadas);
+        // Con Gemini, las interiores también traen tipo (con fuente); sin fuente (historial antiguo o
+        // sin respuesta de la IA) el tipo no se evaluó. El rescatable de una interior nunca se evalúa.
+        const interiorConTipo = interior && f.tipo_construccion_fuente !== null && f.tipo_construccion_fuente !== undefined;
+        if (interiorConTipo) {
+          datosVista = `<div class="foto-fila-datos">
+               <span><span class="dato-etiqueta">Construcción</span> ${htmlTipo(f.tipo_construccion, f.tipo_construccion_fuente, noEntrenadas, { siFalta: null })}</span>
+             </div>
+             <p class="foto-fila-nota">Rescatable: no se evalúa desde interiores.</p>`;
+        } else if (interior) {
+          datosVista = `<p class="foto-fila-nota">Tipo de construcción y rescatable: no se evalúa desde interiores.</p>`;
+        } else {
+          const noDisponible = `<span class="no-evaluado">No disponible</span>`;
+          datosVista = `<div class="foto-fila-datos">
+               <span><span class="dato-etiqueta">Construcción</span> ${htmlTipo(f.tipo_construccion, f.tipo_construccion_fuente, noEntrenadas, { siFalta: null })}</span>
+               <span><span class="dato-etiqueta">Rescatable</span> ${htmlRescatable(f.rescatable, f.rescatable_fuente, noEntrenadas, { comoChip: true })}</span>
+             </div>`;
+        }
+        return `
+          <li class="foto-fila" data-indice="${indice}">
+            ${medio}
+            <div>
+              <div class="foto-fila-cabecera">
+                <span class="foto-fila-titulo">Foto ${indice}</span>
+                <span class="foto-fila-vista">${interior ? "Interior" : "Exterior"}</span>
+              </div>
+              <p class="foto-fila-nombre">${texto(f.nombre_archivo)}</p>
+              <div class="foto-fila-datos">
+                <span><span class="dato-etiqueta">Daño</span> ${chip(f.nivel_dano, claseNivel(f.nivel_dano))}</span>
+                <span><span class="dato-etiqueta">Confianza</span> ${textoConfianza(f.confianza)}</span>
+              </div>
+              ${htmlProbabilidades(f.probabilidades)}
+              ${datosVista}
+            </div>
+          </li>
+        `;
+      }).join("");
+    return `
+      <section class="panel">
+        <h3>Fotos analizadas</h3>
+        <ol class="lista-fotos">${filas}</ol>
+      </section>
+    `;
+  }
+
+  function mostrarFichaVacia() {
+    divResultado.innerHTML = `
+      <article class="ficha neutra" aria-label="Sin evaluar">
+        <div class="ficha-banda">
+          <h3 class="ficha-titular">Sin evaluar</h3>
+          <p class="ficha-bajada">Agrega las fotos y presiona Analizar. Aquí aparecerá la evaluación sugerida.</p>
+        </div>
+        <div class="ficha-pie"><p>La evaluación es una sugerencia preliminar. Un ingeniero colegiado debe validarla antes de tomar decisiones.</p></div>
+      </article>
+    `;
+  }
+
+  function mostrarFichaPendiente(conIA) {
+    const bajada = conIA
+      ? "Clasificando el daño y redactando la explicación con IA. Puede tardar hasta un minuto."
+      : "Clasificando el daño.";
+    divResultado.innerHTML = `
+      <article class="ficha neutra" aria-label="Analizando">
+        <div class="ficha-banda">
+          <h3 class="ficha-titular">Analizando</h3>
+          <p class="ficha-bajada">${bajada}</p>
+        </div>
+      </article>
+    `;
+  }
+
+  // acciones: "cuenta" (Ingresar y Crear cuenta), "ingresar", "reintentar" o null.
+  function mostrarErrorResultado(mensaje, { acciones = null } = {}) {
+    const botones = {
+      cuenta: `<button type="button" class="btn btn-secundario" data-abrir="ingresar">Ingresar</button>
+               <button type="button" class="btn btn-primario" data-abrir="registro">Crear cuenta</button>`,
+      ingresar: `<button type="button" class="btn btn-secundario" data-abrir="ingresar">Ingresar</button>`,
+      reintentar: `<button type="button" class="btn btn-secundario" data-reintentar>Volver a intentar</button>`,
+    }[acciones] || "";
+    divResultado.innerHTML = `
+      <article class="ficha neutra" aria-label="Sin evaluar">
+        <div class="ficha-banda">
+          <h3 class="ficha-titular">Sin evaluar</h3>
+          <p class="ficha-bajada">El análisis no se completó.</p>
+        </div>
+        <div class="ficha-pie">
+          <div class="aviso aviso-error" role="alert"><p>${escaparHtml(mensaje)}</p></div>
+          ${botones ? `<div class="historial-sin-sesion">${botones}</div>` : ""}
+        </div>
+      </article>
+    `;
+  }
+
+  function mostrarResultado(r, enviadas) {
+    urlsResultado.forEach(url => URL.revokeObjectURL(url));
+    urlsResultado = [];
+
+    const sinGuardar = r.guardado === false
+      ? `<div class="nota-sin-guardar">
+           <p>Este análisis no se guardó. Crea una cuenta para guardarlo en tu historial.</p>
+           <button type="button" class="btn btn-secundario" data-abrir="registro">Crear cuenta</button>
+         </div>`
+      : "";
+    divResultado.innerHTML = htmlFicha(r, { nueva: true }) + sinGuardar + htmlExplicacion(r) + htmlFotos(r, { imagenes: "locales" });
+
+    divResultado.querySelectorAll(".foto-fila").forEach(fila => {
+      const foto = enviadas[Number(fila.dataset.indice) - 1];
+      const img = fila.querySelector("img");
+      if (!img) return;
+      if (!foto) {
+        img.remove();
+        fila.classList.add("sin-imagen");
+        return;
+      }
+      // URL propia: si luego se quita la foto de la lista, la miniatura del resultado no se rompe.
+      const url = URL.createObjectURL(foto.archivo);
+      urlsResultado.push(url);
+      img.src = url;
+      hacerAmpliable(img, url, img.alt);
+    });
+
+    anuncio.textContent = `Evaluación lista: ${estadoFicha(r).titular}.`;
+    if (window.matchMedia("(max-width: 959px)").matches) {
+      divResultado.querySelector(".ficha").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  // ---------- Estado del servidor ----------
+  async function verificarEstadoModelo() {
+    try {
+      const respuesta = await fetch(`${URL_API}/estado`);
+      const datos = await respuesta.json();
+      estadoServidor.classList.remove("error");
+      estadoServidor.textContent = datos.modelo_disponible
+        ? "Modelo listo"
+        : "Modelo no cargado: los resultados serán simulados";
+    } catch {
+      estadoServidor.classList.add("error");
+      estadoServidor.textContent = "Sin conexión con el servidor";
+    }
+  }
+
+  // ---------- Historial (solo con sesión) ----------
+  const urlsMiniaturas = new Map(); // posición de la fila -> URLs creadas con URL.createObjectURL
+
+  function revocarMiniaturas(pos) {
+    const posiciones = pos === undefined ? [...urlsMiniaturas.keys()] : [pos];
+    posiciones.forEach(p => {
+      (urlsMiniaturas.get(p) || []).forEach(url => URL.revokeObjectURL(url));
+      urlsMiniaturas.delete(p);
+    });
+  }
+
+  function renderizarHistorialSinSesion() {
+    divExportarInfo.innerHTML = "";
+    divHistorial.innerHTML = `
+      <div class="historial-sin-sesion">
+        <p>Ingresa o crea una cuenta para ver tu historial.</p>
+        <button type="button" class="btn btn-secundario" data-abrir="ingresar">Ingresar</button>
+        <button type="button" class="btn btn-primario" data-abrir="registro">Crear cuenta</button>
+      </div>
+    `;
+  }
+
+  async function cargarHistorial() {
+    revocarMiniaturas();
+    if (!sesion) {
+      inspeccionesHistorial = [];
+      renderizarHistorialSinSesion();
+      return;
+    }
+    let inspecciones;
+    try {
+      const respuesta = await api("/historial");
+      if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+      inspecciones = await respuesta.json();
+      if (!Array.isArray(inspecciones)) throw new Error("Formato inesperado");
+    } catch (error) {
+      if (error instanceof SesionVencida) return;
+      divHistorial.innerHTML = `<div class="aviso aviso-error"><p>No se pudo cargar tu historial. Verifica que el servidor esté encendido y presiona Actualizar.</p></div>`;
+      return;
+    }
+
+    inspeccionesHistorial = inspecciones;
+    if (!inspecciones.length) {
+      divHistorial.innerHTML = `<p class="historial-vacio">Todavía no tienes inspecciones guardadas. Analiza un edificio y aparecerá aquí.</p>`;
+      return;
+    }
+
+    // El orden por prioridad ya viene del backend.
+    const filas = inspecciones.map((i, pos) => {
+      const v = i.veredicto;
+      const e = estadoFicha(i);
+      const noEntrenadas = salidasNoEntrenadas(i.cabezas_no_entrenadas);
+      const nota = notaNoEntrenado(noEntrenadas, v.rescatable_fuente,
+        esTipoDeGemini(v.tipo_construccion, v.tipo_construccion_fuente)
+        || tipoNoDistinguido(v.tipo_construccion, v.tipo_construccion_fuente));
+      const noDisponible = `<span class="no-evaluado" title="${nota}">No disponible</span>`;
+      const total = Number(i.total_fotos);
+      return `
+        <tr class="fila-inspeccion">
+          <td class="col-ficha">${Number(i.inspeccion_id)}</td>
+          <td class="col-fecha">${formatearFecha(i.fecha)}</td>
+          <td class="col-veredicto"><span class="chip chip-${e.clase}">${e.titular}</span></td>
+          <td class="col-dano">${chip(v.nivel_dano, claseNivel(v.nivel_dano))}</td>
+          <td class="col-rescatable">${htmlRescatable(v.rescatable, v.rescatable_fuente, noEntrenadas, { comoChip: true })}</td>
+          <td class="col-construccion">${htmlTipo(v.tipo_construccion, v.tipo_construccion_fuente, noEntrenadas)}</td>
+          <td class="col-fotos">${plural(total, "foto", "fotos")}</td>
+          <td class="col-ver"><button type="button" class="btn btn-secundario btn-ver" data-pos="${pos}" aria-expanded="false" aria-controls="detalle-${pos}">Ver detalle</button></td>
+        </tr>
+        <tr class="fila-detalle" id="detalle-${pos}" hidden><td colspan="8"></td></tr>
+      `;
+    }).join("");
+
+    divHistorial.innerHTML = `
+      <table class="tabla-historial">
+        <caption class="sr-only">Tus inspecciones guardadas, de la más grave a la menos grave</caption>
+        <thead>
+          <tr>
+            <th scope="col">Ficha</th><th scope="col">Fecha</th><th scope="col">Veredicto</th>
+            <th scope="col">Daño</th><th scope="col">Rescatable</th><th scope="col">Construcción</th>
+            <th scope="col">Fotos</th><th scope="col"><span class="sr-only">Detalle</span></th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+    `;
+  }
+
+  // Cada miniatura se pide con el token; la URL se libera al cerrar la fila.
+  async function cargarMiniaturas(inspeccion, pos, contenedor) {
+    const urls = [];
+    urlsMiniaturas.set(pos, urls);
+    const imagenes = [...contenedor.querySelectorAll("img[data-miniatura]")];
+    await Promise.all(imagenes.map(async img => {
+      try {
+        const respuesta = await api(`/inspecciones/${Number(inspeccion.inspeccion_id)}/fotos/${Number(img.dataset.miniatura)}`);
+        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+        const url = URL.createObjectURL(await respuesta.blob());
+        // Si la fila se cerró mientras llegaba la foto, se libera de inmediato.
+        if (urlsMiniaturas.get(pos) !== urls || !img.isConnected) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        urls.push(url);
+        img.src = url;
+        hacerAmpliable(img, url, img.alt);
+      } catch (error) {
+        if (error instanceof SesionVencida || !img.isConnected) return;
+        const vacia = document.createElement("div");
+        vacia.className = "miniatura-vacia";
+        vacia.textContent = "Foto no disponible";
+        img.replaceWith(vacia);
+      }
+    }));
+  }
+
+  divHistorial.addEventListener("click", (e) => {
+    const botonVer = e.target.closest(".btn-ver");
+    if (!botonVer) return;
+    const pos = Number(botonVer.dataset.pos);
+    const detalle = document.getElementById(`detalle-${pos}`);
+    const celda = detalle.firstElementChild;
+    const abrir = detalle.hidden;
+    if (abrir) {
+      const i = inspeccionesHistorial[pos];
+      celda.innerHTML = `
+        <div class="detalle-grid">
+          <div class="detalle-columna">${htmlFicha(i)}</div>
+          <div class="detalle-columna">${htmlExplicacion(i, { desdeHistorial: true })}${htmlFotos(i, { imagenes: "miniaturas" })}</div>
+        </div>
+      `;
+      cargarMiniaturas(i, pos, celda);
+    } else {
+      revocarMiniaturas(pos);
+      celda.innerHTML = "";
+    }
+    detalle.hidden = !abrir;
+    botonVer.setAttribute("aria-expanded", String(abrir));
+    botonVer.textContent = abrir ? "Ocultar detalle" : "Ver detalle";
+    botonVer.closest("tr").classList.toggle("abierta", abrir);
+  });
+
+  document.getElementById("btn-actualizar").addEventListener("click", cargarHistorial);
+
+  // ---------- Exportación (solo con sesión) ----------
+  async function descargarHistorial(ruta, nombreArchivo, botonDescarga, formato) {
+    divExportarInfo.innerHTML = "";
+    const textoOriginal = botonDescarga.textContent;
+    botonDescarga.disabled = true;
+    botonDescarga.textContent = `Generando ${formato}…`;
+    try {
+      const respuesta = await api(ruta);
+      if (!respuesta.ok) {
+        throw new Error(`El servidor no pudo generar el ${formato}. Vuelve a intentar en unos segundos.`);
+      }
+      const blob = await respuesta.blob();
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = nombreArchivo;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      if (!(error instanceof SesionVencida)) {
+        divExportarInfo.innerHTML = `<div class="aviso aviso-error"><p>${escaparHtml(error.message)}</p></div>`;
+      }
+    } finally {
+      botonDescarga.disabled = false;
+      botonDescarga.textContent = textoOriginal;
+    }
+  }
+
+  document.getElementById("btn-exportar-excel").addEventListener("click", (e) => {
+    descargarHistorial("/historial/exportar-excel", "historial.xlsx", e.currentTarget, "Excel");
+  });
+  document.getElementById("btn-exportar-pdf").addEventListener("click", (e) => {
+    descargarHistorial("/historial/exportar-pdf", "historial.pdf", e.currentTarget, "PDF");
+  });
+
+  // ---------- Vista ampliada ----------
+  const lightbox = document.getElementById("lightbox");
+  const lightboxImg = document.getElementById("lightbox-img");
+  const lightboxCerrar = document.getElementById("lightbox-cerrar");
+  const fondoLightbox = [document.querySelector(".cabecera"), document.getElementById("principal")];
+  let origenLightbox = null;
+
+  function abrirLightbox(src, alt, origen) {
+    origenLightbox = origen || null;
+    lightboxImg.src = src;
+    lightboxImg.alt = alt || "Foto ampliada";
+    lightbox.hidden = false;
+    fondoLightbox.forEach(el => { el.inert = true; });
+    lightboxCerrar.focus();
+  }
+
+  function cerrarLightbox() {
+    if (lightbox.hidden) return;
+    lightbox.hidden = true;
+    lightboxImg.removeAttribute("src");
+    fondoLightbox.forEach(el => { el.inert = false; });
+    if (origenLightbox && origenLightbox.isConnected) origenLightbox.focus({ preventScroll: true });
+    origenLightbox = null;
+  }
+
+  lightboxCerrar.addEventListener("click", cerrarLightbox);
+  lightbox.addEventListener("click", (e) => {
+    if (e.target === lightbox) cerrarLightbox();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") cerrarLightbox();
+  });
+
+  // ---------- Inicio ----------
+  renderizarZona();
+  actualizarContador();
+  mostrarFichaVacia();
+  actualizarAltoBarra();
+  renderizarSesion();
+  verificarEstadoModelo();
+  comprobarSesionGuardada().then(cargarHistorial);
+</script>
+
+</body>
+</html>
