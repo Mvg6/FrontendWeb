@@ -906,6 +906,17 @@
   </form>
 </dialog>
 
+<dialog id="dialogo-guardar-anterior" class="dialogo" aria-labelledby="titulo-guardar-anterior">
+  <div class="dialogo-form">
+    <h2 id="titulo-guardar-anterior">¿Guardar el análisis anterior en tu historial?</h2>
+    <p class="dialogo-intro">Se vuelven a enviar las mismas fotos, con sus mismas vistas, y el análisis queda guardado en tu cuenta.</p>
+    <div class="dialogo-acciones">
+      <button type="button" class="btn btn-secundario" id="btn-no-guardar-anterior">No guardar</button>
+      <button type="button" class="btn btn-primario" id="btn-guardar-anterior">Guardar</button>
+    </div>
+  </div>
+</dialog>
+
 <p id="anuncio" class="sr-only" aria-live="polite"></p>
 
 <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden>
@@ -1108,6 +1119,9 @@
   let temporizadorProgreso = null;
   // Lo enviado en el último análisis (fotos, vistas y consentimiento), para "Volver a analizar".
   let ultimoAnalisis = null;
+  // El último análisis hecho sin sesión (no se guardó): al ingresar o crear cuenta se ofrece
+  // guardarlo, solo si las mismas fotos con las mismas vistas siguen cargadas.
+  let analisisSinGuardar = null;
 
   // ---------- Elementos ----------
   const inputArchivo = document.getElementById("input-archivo");
@@ -1617,6 +1631,7 @@
     urlPreviewUnica = null;
     archivoSeleccionado = null;
     ultimoAnalisis = null;
+    analisisSinGuardar = null;
     mostrarAvisos(null);
     renderizarInfoFotoUnica();
     renderizarFotosEdificio();
@@ -1700,6 +1715,7 @@
       try {
         await iniciarSesion(usuario, c.contrasena.value);
         dialogos.ingresar.close();
+        ofrecerGuardarAnterior();
       } catch (error) {
         errorDialogo(form, error.message);
       }
@@ -1737,11 +1753,42 @@
         await iniciarSesion(usuario, contrasena);
         dialogos.registro.close();
         mostrarAvisoSesion("Cuenta creada. Desde ahora tus análisis se guardan en tu historial.");
+        ofrecerGuardarAnterior();
       } catch (error) {
         errorDialogo(form, error.message);
       }
     });
   });
+
+  const dialogoGuardarAnterior = document.getElementById("dialogo-guardar-anterior");
+
+  // Las mismas fotos (los mismos archivos, en el mismo orden) y las mismas vistas que se analizaron sin sesión.
+  function analisisAnteriorVigente() {
+    const a = analisisSinGuardar;
+    if (!a || analizando) return false;
+    if (a.modo === "una") return modo === "una" && archivoSeleccionado === a.archivo && vistaUnica === a.vista;
+    return modo === "edificio" && fotosEdificio.length === a.fotos.length
+      && a.fotos.every((foto, i) => fotosEdificio[i] === foto && foto.vista === a.vistas[i]);
+  }
+
+  // Tras ingresar o crear cuenta. Si se cambiaron o quitaron las fotos, no se ofrece nada.
+  function ofrecerGuardarAnterior() {
+    if (analisisAnteriorVigente()) dialogoGuardarAnterior.showModal();
+    else analisisSinGuardar = null;
+  }
+
+  document.getElementById("btn-guardar-anterior").addEventListener("click", () => {
+    const anterior = analisisSinGuardar;
+    analisisSinGuardar = null;
+    dialogoGuardarAnterior.close();
+    if (!anterior || !sesion) return;
+    // Se reenvían las mismas fotos y vistas con la sesión: el backend lo guarda y la explicación
+    // sale de la caché de IA (misma entrada), sin volver a consultar a ningún proveedor.
+    if (anterior.modo === "una") analizarUnaFoto(anterior);
+    else analizarEdificio(anterior);
+  });
+  document.getElementById("btn-no-guardar-anterior").addEventListener("click", () => dialogoGuardarAnterior.close());
+  dialogoGuardarAnterior.addEventListener("close", () => { analisisSinGuardar = null; });
 
   async function cerrarSesion() {
     if (sesion) {
@@ -1841,6 +1888,7 @@
     const aceptaIa = repetir ? repetir.aceptaIa : consentimientoIaMarcado();
     const vista = repetir ? repetir.vista : vistaUnica;
     ultimoAnalisis = { modo: "una", archivo, aceptaIa, vista };
+    analisisSinGuardar = null;
     mostrarAvisos(null);
     comenzarAnalisis(1, !!sesion || aceptaIa);
 
@@ -1859,6 +1907,7 @@
       }
       const r = await respuesta.json();
       mostrarResultado(normalizarUnaFoto(r, archivo), [{ archivo }]);
+      if (!r.guardado) analisisSinGuardar = { ...ultimoAnalisis };
       if (sesion) cargarHistorial();
     } catch (error) {
       mostrarErrorAnalisis(error);
@@ -1874,6 +1923,7 @@
     const vista = r.vista === "interior" ? "interior" : "exterior";
     return {
       inspeccion_id: r.inspeccion_id ?? null,
+      numero_usuario: r.numero_usuario ?? null,
       guardado: r.guardado,
       total_fotos: 1,
       usando_modelo_real: r.usando_modelo_real,
@@ -1908,6 +1958,7 @@
     const vistas = repetir ? repetir.vistas : enviadas.map(f => f.vista);
     const aceptaIa = repetir ? repetir.aceptaIa : consentimientoIaMarcado();
     ultimoAnalisis = { modo: "edificio", fotos: enviadas, vistas, aceptaIa };
+    analisisSinGuardar = null;
     enviadas.forEach(f => { f.error = null; });
     mostrarAvisos(null);
     renderizarFotosEdificio();
@@ -1931,7 +1982,9 @@
           ? `${detalle} Quita o cambia esa foto (está marcada en rojo) y vuelve a intentar.`
           : `${detalle} Revisa las fotos y vuelve a intentar.`);
       }
-      mostrarResultado(await respuesta.json(), enviadas);
+      const r = await respuesta.json();
+      mostrarResultado(r, enviadas);
+      if (!r.guardado) analisisSinGuardar = { ...ultimoAnalisis };
       if (sesion) cargarHistorial();
     } catch (error) {
       mostrarErrorAnalisis(error);
@@ -1956,8 +2009,9 @@
     const v = r.veredicto;
     const e = estadoFicha(r);
     const x = r.explicacion;
-    const numero = r.inspeccion_id !== null && r.inspeccion_id !== undefined
-      ? `<span class="ficha-numero">Ficha N.º ${Number(r.inspeccion_id)}</span>` : "";
+    // numero_usuario: 1, 2, 3... de cada usuario. El id interno solo se usa para pedir las miniaturas.
+    const numero = r.numero_usuario !== null && r.numero_usuario !== undefined
+      ? `<span class="ficha-numero">Ficha N.º ${Number(r.numero_usuario)}</span>` : "";
 
     const franjas = [];
     if (x && x.discrepancia !== null && x.discrepancia !== undefined) {
@@ -2320,7 +2374,7 @@
       const total = Number(i.total_fotos);
       return `
         <tr class="fila-inspeccion">
-          <td class="col-ficha">${Number(i.inspeccion_id)}</td>
+          <td class="col-ficha">${Number(i.numero_usuario)}</td>
           <td class="col-fecha">${formatearFecha(i.fecha)}</td>
           <td class="col-veredicto"><span class="chip chip-${e.clase}">${e.titular}</span></td>
           <td class="col-dano">${chip(v.nivel_dano, claseNivel(v.nivel_dano))}</td>
