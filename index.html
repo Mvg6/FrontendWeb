@@ -376,6 +376,8 @@
     border-radius: 4px;
     overflow: hidden;
   }
+  /* Modo "Una foto": vista de la foto bajo el nombre del archivo. */
+  #archivo-info .selector-vista { margin-top: 8px; max-width: 320px; }
   .selector-vista label { flex: 1; position: relative; cursor: pointer; }
   .selector-vista input { position: absolute; opacity: 0; pointer-events: none; }
   .selector-vista span {
@@ -791,7 +793,7 @@
     <div class="barra-accion" id="barra-accion">
       <label class="consentimiento-ia" id="consentimiento-ia">
         <input type="checkbox" id="acepta-envio-ia">
-        <span>Acepto que la foto se envíe a Google Gemini para redactar una explicación detallada.</span>
+        <span>Acepto que la foto se envíe a un servicio externo de IA (Google Gemini o, si no responde, Groq u OpenRouter) para redactar una explicación detallada.</span>
       </label>
       <button type="button" id="btn-analizar" class="btn btn-primario" disabled>Analizar foto</button>
       <div id="progreso" class="progreso" hidden>
@@ -870,7 +872,7 @@
       <p class="aviso-privacidad-titulo">Aviso de privacidad</p>
       <ul>
         <li>Se guardan tu nombre de usuario, los resultados de tus análisis y una miniatura de cada foto.</li>
-        <li>Con cuenta, las fotos se envían a Google Gemini para redactar la explicación.</li>
+        <li>Con cuenta, las fotos se envían a un servicio externo de IA (Google Gemini o, si no responde, Groq u OpenRouter) para redactar la explicación.</li>
         <li>Puedes eliminar tu cuenta y todos tus datos cuando quieras.</li>
         <li>No hay recuperación de contraseña: si la olvidas, tendrás que crear otra cuenta.</li>
       </ul>
@@ -1029,28 +1031,34 @@
     return "";
   }
 
-  // La explicación es de respaldo porque Gemini no respondió (cuota agotada o error).
+  // Proveedores de IA externa del pool de claves del backend (la explicación y el tipo traen cuál respondió).
+  const NOMBRES_PROVEEDOR_IA = { gemini: "Gemini", groq: "Groq", openrouter: "OpenRouter" };
+  function esFuenteIa(fuente) {
+    return Object.prototype.hasOwnProperty.call(NOMBRES_PROVEEDOR_IA, fuente);
+  }
+
+  // La explicación es de respaldo porque ninguna clave de IA respondió (cuota, error o tope por minuto).
   function iaFallo(explicacion) {
-    return !!explicacion && explicacion.fuente !== "gemini"
-      && (explicacion.motivo_respaldo === "cuota" || explicacion.motivo_respaldo === "error");
+    return !!explicacion && !esFuenteIa(explicacion.fuente)
+      && ["cuota", "error", "limite_feria"].includes(explicacion.motivo_respaldo);
   }
 
   function esTipoDeGemini(valor, fuente) {
-    return fuente === "gemini" && valor !== null && valor !== undefined;
+    return esFuenteIa(fuente) && valor !== null && valor !== undefined;
   }
 
-  // Tipo de construcción: con fuente "gemini" lleva rótulo; null sin entrenar es "No disponible".
-  // Gemini evaluó el tipo pero no lo distinguió con seguridad (fuente "gemini" y valor null).
+  // Tipo de construcción: con fuente de IA externa lleva rótulo; null sin entrenar es "No disponible".
+  // La IA evaluó el tipo pero no lo distinguió con seguridad (fuente de IA y valor null).
   function tipoNoDistinguido(valor, fuente) {
-    return fuente === "gemini" && (valor === null || valor === undefined);
+    return esFuenteIa(fuente) && (valor === null || valor === undefined);
   }
 
   function htmlTipo(valor, fuente, noEntrenadas, { siFalta = "No evaluado" } = {}) {
     if (esTipoDeGemini(valor, fuente)) {
-      return `${texto(valor)}<span class="rotulo-fuente">Detectado por IA externa (Gemini), referencial</span>`;
+      return `${texto(valor)}<span class="rotulo-fuente">Detectado por IA externa (${NOMBRES_PROVEEDOR_IA[fuente]}), referencial</span>`;
     }
     if (tipoNoDistinguido(valor, fuente)) {
-      return `<span class="no-evaluado">No se distingue con seguridad en las fotos</span><span class="rotulo-fuente">Evaluado por IA externa (Gemini)</span>`;
+      return `<span class="no-evaluado">No se distingue con seguridad en las fotos</span><span class="rotulo-fuente">Evaluado por IA externa (${NOMBRES_PROVEEDOR_IA[fuente]})</span>`;
     }
     if (valor !== null && valor !== undefined) return texto(valor);
     if (sinEntrenar(valor, "tipo_construccion", noEntrenadas)) return `<span class="no-evaluado">No disponible</span>`;
@@ -1089,6 +1097,8 @@
   let modo = "una";
   let analizando = false;
   let archivoSeleccionado = null;
+  // Vista de la foto en el modo "Una foto" (D-05: antes se enviaba siempre como exterior).
+  let vistaUnica = "exterior";
   let urlPreviewUnica = null;
   let urlsResultado = [];
   // Cada foto: { id, archivo, vista: "exterior" | "interior", url, error }
@@ -1309,6 +1319,18 @@
     acciones.append(btnAmpliar, btnCambiar);
     fila.append(nombre, acciones);
     archivoInfo.appendChild(fila);
+
+    const selector = document.createElement("fieldset");
+    selector.className = "selector-vista";
+    selector.innerHTML = `
+      <legend class="sr-only">Vista de la foto</legend>
+      <label><input type="radio" name="vista-unica" value="exterior"><span>Exterior</span></label>
+      <label><input type="radio" name="vista-unica" value="interior"><span>Interior</span></label>`;
+    selector.querySelectorAll('input[type="radio"]').forEach(radio => {
+      radio.checked = radio.value === vistaUnica;
+      radio.addEventListener("change", () => { vistaUnica = radio.value; });
+    });
+    archivoInfo.appendChild(selector);
   }
 
   function renderizarFotosEdificio() {
@@ -1817,12 +1839,14 @@
     const archivo = repetir ? repetir.archivo : archivoSeleccionado;
     if (!archivo || analizando) return;
     const aceptaIa = repetir ? repetir.aceptaIa : consentimientoIaMarcado();
-    ultimoAnalisis = { modo: "una", archivo, aceptaIa };
+    const vista = repetir ? repetir.vista : vistaUnica;
+    ultimoAnalisis = { modo: "una", archivo, aceptaIa, vista };
     mostrarAvisos(null);
     comenzarAnalisis(1, !!sesion || aceptaIa);
 
     const formData = new FormData();
     formData.append("archivo", archivo);
+    formData.append("vista", vista);
     if (aceptaIa) formData.append("acepta_envio_ia", "true");
     try {
       const respuesta = await api("/analizar", { method: "POST", body: formData }, { limiteMs: LIMITE_ANALISIS_MS });
@@ -1847,6 +1871,7 @@
   function normalizarUnaFoto(r, archivo) {
     const rescatableFuente = r.rescatable_fuente ?? r.veredicto?.rescatable_fuente ?? null;
     const tipoFuente = r.tipo_construccion_fuente ?? null;
+    const vista = r.vista === "interior" ? "interior" : "exterior";
     return {
       inspeccion_id: r.inspeccion_id ?? null,
       guardado: r.guardado,
@@ -1859,12 +1884,12 @@
         rescatable: r.rescatable,
         rescatable_fuente: rescatableFuente,
         recomendacion: r.recomendacion,
-        fotos_exteriores: 1,
-        fotos_interiores: 0,
-        nota: null,
+        fotos_exteriores: vista === "exterior" ? 1 : 0,
+        fotos_interiores: vista === "interior" ? 1 : 0,
+        nota: r.nota ?? null,
       },
       fotos: [{
-        indice: 1, nombre_archivo: archivo.name, vista: "exterior", nivel_dano: r.nivel_dano,
+        indice: 1, nombre_archivo: archivo.name, vista, nivel_dano: r.nivel_dano,
         tipo_construccion: r.tipo_construccion, tipo_construccion_fuente: tipoFuente,
         rescatable: r.rescatable, rescatable_fuente: rescatableFuente,
         confianza: r.confianza, probabilidades: r.probabilidades ?? null,
@@ -2017,7 +2042,7 @@
   // desdeHistorial: no hay fotos locales que reenviar, así que no se ofrece "Volver a analizar".
   function htmlExplicacion(r, { desdeHistorial = false } = {}) {
     const x = r.explicacion;
-    if (!x || x.fuente !== "gemini") {
+    if (!x || !esFuenteIa(x.fuente)) {
       const recomendacion = x && x.viabilidad ? x.viabilidad : r.veredicto.recomendacion;
       const botonCuenta = sesion ? "" : `<button type="button" class="btn btn-secundario btn-cta" data-abrir="registro">Crear cuenta</button>`;
       let invitacion = "";
@@ -2025,7 +2050,7 @@
         invitacion = desdeHistorial
           ? `<div class="cta-explicacion"><p>La explicación con IA no estuvo disponible cuando se hizo este análisis.</p></div>`
           : `<div class="cta-explicacion">
-               <p>La explicación con IA no está disponible en este momento. Vuelve a analizar en un minuto.</p>
+               <p>${texto(x.mensaje || "La explicación con IA no está disponible en este momento.")} Vuelve a analizar en un minuto.</p>
                <button type="button" class="btn btn-secundario btn-cta" data-reintentar>Volver a analizar</button>
              </div>`;
       } else if (x && (x.motivo_respaldo === "sin_clave" || x.motivo_respaldo === "desactivado")) {
@@ -2075,7 +2100,7 @@
         ${estructura ? `<h4>Estructura y tipo de construcción</h4>${estructura}` : ""}
         ${estado ? `<h4>Estado actual</h4>${estado}` : ""}
         ${viabilidad || acciones ? `<h4>Viabilidad y recomendaciones</h4>${viabilidad}${acciones}` : ""}
-        ${x.modelo ? `<p class="explicacion-modelo">Modelo usado: ${texto(x.modelo)}</p>` : ""}
+        ${x.modelo ? `<p class="explicacion-modelo">Modelo usado: ${texto(x.modelo)} (vía ${NOMBRES_PROVEEDOR_IA[x.fuente]})</p>` : ""}
       </section>
     `;
   }
